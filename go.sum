@@ -6,6 +6,10 @@ github.com/codeuniversity/al-proto v0.0.0-20190204111358-9f7f1e9a86f5 h1:0ez3sjM
 github.com/codeuniversity/al-proto v0.0.0-20190204111358-9f7f1e9a86f5/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/codeuniversity/al-proto v0.0.0-20190204121423-7bb4ddd148a0 h1:f/8yEftVEMy19MZE0hzq/8miNMDxx8i3wCR8QowAFNo=
 github.com/codeuniversity/al-proto v0.0.0-20190204121423-7bb4ddd148a0/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
+github.com/codeuniversity/al-proto v0.0.0-20190204143526-a1f3de7a36ec h1:4Z9yxPGDXcHNEgf8/2Ms7Lt0e6kriPSl3mM3DTdhffs=
+github.com/codeuniversity/al-proto v0.0.0-20190204143526-a1f3de7a36ec/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
+github.com/codeuniversity/al-proto v0.0.0-20190204153502-cf0466c0ff8d h1:rPQPlTjc+PGcegV7vK4BNcfI7bsKwQBOoICvVFCFu0I=
+github.com/codeuniversity/al-proto v0.0.0-20190204153502-cf0466c0ff8d/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/mock v1.1.1/go.mod h1:oTYuIxOrZwtPieC+H1uAHpcLFnEyAGVDL/k47Jfbm0A=
 github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
