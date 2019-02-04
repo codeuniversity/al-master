@@ -43,7 +43,6 @@ func (s *Server) InitUniverse() {
 func (s *Server) Run() {
 	go s.listen()
 	for {
-		var newCells []*proto.Cell
 		s.withCellInteractionClient(2*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
 			batch := &proto.CellComputeBatch{
 				CellsToCompute: s.cells,
@@ -53,13 +52,13 @@ func (s *Server) Run() {
 			if err != nil {
 				panic(err)
 			}
-			newCells = returnedBatch.CellsToCompute
+
+			s.cells = returnedBatch.CellsToCompute
+			s.timeStep++
+			fmt.Println(s.timeStep)
+			s.broadcastCurrentState()
 		})
 
-		s.cells = newCells
-		s.timeStep++
-		fmt.Println(s.timeStep)
-		s.broadcastCurrentState()
 	}
 }
 
