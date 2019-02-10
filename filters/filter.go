@@ -8,11 +8,11 @@ import (
 
 //FilterDefinition ...
 type FilterDefinition struct {
-	LeftHand      string
-	LeftHandType  string
-	Operator      string
-	RightHand     string
-	RightHandType string
+	LeftHand      string `json:"left_hand"`
+	LeftHandType  string `json:"left_hand_type"`
+	Operator      string `json:"operator"`
+	RightHand     string `json:"right_hand"`
+	RightHandType string `json:"right_hand_type"`
 }
 
 type operator int
