@@ -43,7 +43,7 @@ func (s *Server) InitUniverse() {
 func (s *Server) Run() {
 	go s.listen()
 	for {
-		s.withCellInteractionClient(2*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
+		s.withCellInteractionClient(100*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
 			batch := &proto.CellComputeBatch{
 				CellsToCompute: s.cells,
 				TimeStep:       s.timeStep,
@@ -63,7 +63,7 @@ func (s *Server) Run() {
 }
 
 func (s *Server) fetchBigBang() {
-	s.withCellInteractionClient(10*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
+	s.withCellInteractionClient(100*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
 		stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
 		if err != nil {
 			panic(err)
