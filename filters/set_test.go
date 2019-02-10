@@ -28,10 +28,7 @@ func TestSet(t *testing.T) {
 				RightHandType: "number",
 			},
 		}
-		set := Set{}
-		for _, definition := range definitions {
-			set = append(set, NewFilter(definition))
-		}
+		set := SetFromDefinitions(definitions)
 
 		passed, warnings := set.Eval(passingCell)
 		assert.True(t, passed)
@@ -61,11 +58,7 @@ func TestSet(t *testing.T) {
 				RightHandType: "nummber",
 			},
 		}
-		set := Set{}
-		for _, definition := range definitions {
-			set = append(set, NewFilter(definition))
-		}
-
+		set := SetFromDefinitions(definitions)
 		passed, warnings := set.Eval(someCell)
 		assert.False(t, passed)
 		assert.Equal(
