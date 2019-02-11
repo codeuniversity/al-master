@@ -42,47 +42,50 @@ func (s *Server) InitUniverse() {
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
 	go s.listen()
-	for {
-		s.withCellInteractionClient(100*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
-			batch := &proto.CellComputeBatch{
-				CellsToCompute: s.cells,
-				TimeStep:       s.timeStep,
-			}
-			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			if err != nil {
-				panic(err)
-			}
-
-			s.cells = returnedBatch.CellsToCompute
-			s.timeStep++
-			fmt.Println(s.timeStep)
-			s.broadcastCurrentState()
-		})
-
-	}
-}
-
-func (s *Server) fetchBigBang() {
-	s.withCellInteractionClient(100*time.Second, func(c proto.CellInteractionServiceClient, ctx context.Context) {
-		stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
-		if err != nil {
-			panic(err)
-		}
-
+	s.withCellInteractionClient(func(c proto.CellInteractionServiceClient) {
 		for {
-			cell, err := stream.Recv()
-			if err != nil {
-				if err != io.EOF {
-					log.Fatal(err)
+			withTimeout(100*time.Second, func(ctx context.Context) {
+				batch := &proto.CellComputeBatch{
+					CellsToCompute: s.cells,
+					TimeStep:       s.timeStep,
 				}
-				break
-			}
-			s.cells = append(s.cells, cell)
+				returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
+				if err != nil {
+					panic(err)
+				}
+
+				s.cells = returnedBatch.CellsToCompute
+				s.timeStep++
+				fmt.Println(s.timeStep)
+				s.broadcastCurrentState()
+			})
 		}
 	})
 }
 
-func (s *Server) withCellInteractionClient(timeout time.Duration, f func(c proto.CellInteractionServiceClient, ctx context.Context)) {
+func (s *Server) fetchBigBang() {
+	s.withCellInteractionClient(func(c proto.CellInteractionServiceClient) {
+		withTimeout(100*time.Second, func(ctx context.Context) {
+			stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
+			if err != nil {
+				panic(err)
+			}
+
+			for {
+				cell, err := stream.Recv()
+				if err != nil {
+					if err != io.EOF {
+						log.Fatal(err)
+					}
+					break
+				}
+				s.cells = append(s.cells, cell)
+			}
+		})
+	})
+}
+
+func (s *Server) withCellInteractionClient(f func(c proto.CellInteractionServiceClient)) {
 	conn, err := grpc.Dial(s.cisAddress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -90,9 +93,7 @@ func (s *Server) withCellInteractionClient(timeout time.Duration, f func(c proto
 	defer conn.Close()
 	c := proto.NewCellInteractionServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	f(c, ctx)
+	f(c)
 }
 
 var upgrader = websocketConn.Upgrader{
@@ -120,4 +121,10 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) broadcastCurrentState() {
 	s.websocketConnectionsHandler.BroadcastCells(s.cells)
+}
+
+func withTimeout(timeout time.Duration, f func(ctx context.Context)) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	f(ctx)
 }
