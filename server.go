@@ -6,11 +6,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
+	"github.com/codeuniversity/al-master/websocket"
 	"github.com/codeuniversity/al-proto"
-	"github.com/gorilla/websocket"
+	websocketConn "github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 )
 
@@ -22,15 +22,15 @@ type Server struct {
 	cells    []*proto.Cell
 	timeStep uint64
 
-	conns    []*websocket.Conn
-	connLock sync.Mutex
+	websocketConnectionsHandler *websocket.ConnectionsHandler
 }
 
 //NewServer with address to cis
 func NewServer(cisAddress string, port int) *Server {
 	return &Server{
-		port:       port,
-		cisAddress: cisAddress,
+		port:                        port,
+		cisAddress:                  cisAddress,
+		websocketConnectionsHandler: websocket.NewConnectionsHandler(),
 	}
 }
 
@@ -96,7 +96,7 @@ func (s *Server) withCellInteractionClient(f func(c proto.CellInteractionService
 	f(c)
 }
 
-var upgrader = websocket.Upgrader{
+var upgrader = websocketConn.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(_ *http.Request) bool {
@@ -116,44 +116,11 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.connLock.Lock()
-	defer s.connLock.Unlock()
-	s.conns = append(s.conns, conn)
+	s.websocketConnectionsHandler.AddConnection(conn)
 }
 
 func (s *Server) broadcastCurrentState() {
-	s.connLock.Lock()
-	defer s.connLock.Unlock()
-	indicesToRemove := []int{}
-	for index, conn := range s.conns {
-		err := conn.WriteJSON(s.cells)
-		if err != nil {
-			//assume connection is dead
-			fmt.Println(err)
-			indicesToRemove = append(indicesToRemove, index)
-		}
-	}
-
-	if len(indicesToRemove) == 0 {
-		return
-	}
-
-	newSlice := []*websocket.Conn{}
-	for index, conn := range s.conns {
-		if !isIncluded(index, indicesToRemove) {
-			newSlice = append(newSlice, conn)
-		}
-	}
-	s.conns = newSlice
-}
-
-func isIncluded(element int, arr []int) bool {
-	for _, arrayElement := range arr {
-		if arrayElement == element {
-			return true
-		}
-	}
-	return false
+	s.websocketConnectionsHandler.BroadcastCells(s.cells)
 }
 
 func withTimeout(timeout time.Duration, f func(ctx context.Context)) {
