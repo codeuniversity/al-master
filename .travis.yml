@@ -12,4 +12,9 @@ script:
   - GO111MODULE=on make test
   - GO111MODULE=on go build -o $GOPATH/bin/output main/main.go
   - GO111MODULE=on make image
-  - if ["$TRAVIS_BRANCH" = "master"] && ["$TRAVIS_PULL_REQUEST" = "false"]; then GO111MODULE=on make pushImage;
+
+deploy:
+  provider: script
+  script: GO111MODULE=on make docker_push
+  on:
+    branch: master
