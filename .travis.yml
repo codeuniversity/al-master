@@ -1,6 +1,10 @@
 language: go
 go:
   - 1.11.x
-
+  -
 install:
   - go get
+
+script:
+  - go build main/main.go
+  - make test
