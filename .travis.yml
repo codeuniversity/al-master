@@ -7,4 +7,5 @@ install:
 
 script:
   - GO111MODULE=on make test
-  - go build main/main.go
+  - GO111MODULE=on build main/main.go
+  #- go build main/main.go
