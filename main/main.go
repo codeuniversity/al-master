@@ -1,6 +1,6 @@
 package main
 
-//import master "github.com/MonteyMontey/al-master"
+import master "github.com/MonteyMontey/al-master"
 
 const (
 	address = "localhost:5000"
