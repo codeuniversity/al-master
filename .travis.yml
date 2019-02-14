@@ -17,4 +17,4 @@ deploy:
   provider: script
   script: GO111MODULE=on make docker_push
   on:
-    branch: master
+    branch: travis-ci
