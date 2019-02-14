@@ -2,9 +2,13 @@ language: go
 go:
   - 1.11.x
 
+services:
+  - docker
+
 install:
   - go get
 
 script:
   - GO111MODULE=on make test
   - GO111MODULE=on go build -o $GOPATH/bin/output main/main.go
+  - GO111MODULE=on make image
