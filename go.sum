@@ -1,5 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
+github.com/codeuniversity/al-master v0.0.0-20190213210412-73c7d1804214 h1:BeeNCDfHlP5j4KimrOwcIAVxL6yXe0DncTvSI61QKK4=
+github.com/codeuniversity/al-master v0.0.0-20190213210412-73c7d1804214/go.mod h1:wafZHsCQ27OLaRnHv/mqbs7zl3QNRT7BVNcQOpuv0pQ=
 github.com/codeuniversity/al-proto v0.0.0-20190204101308-efbf02bd6b2b h1:QksOWN2WZrjvpL3ANwszdEpmGk1ZNsu1ziPqfEgsMNA=
 github.com/codeuniversity/al-proto v0.0.0-20190204101308-efbf02bd6b2b/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/codeuniversity/al-proto v0.0.0-20190204111358-9f7f1e9a86f5 h1:0ez3sjMm2QMRQ1WPulLLUNwFZsvNci8giMT2dMigplc=
