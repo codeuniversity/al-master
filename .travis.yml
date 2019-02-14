@@ -6,5 +6,4 @@ install:
   - go get
 
 script:
-  - go build main/main.go
   - make test
