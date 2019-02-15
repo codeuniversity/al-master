@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -17,8 +18,8 @@ import (
 
 //Server that manages cell changes
 type Server struct {
-	port       int
-	cisAddress string
+	httpPort int
+	grpcPort int
 
 	cells    []*proto.Cell
 	timeStep uint64
@@ -28,31 +29,40 @@ type Server struct {
 }
 
 //NewServer with address to cis
-func NewServer(cisAddress string, cisConcurrentConns, connBufferSize int, port int) *Server {
+func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
 	clientPool := NewCISClientPool(connBufferSize)
-	for i := 0; i < cisConcurrentConns; i++ {
-		clientPool.AddClient(createCellInteractionClient(cisAddress))
-	}
 
 	return &Server{
-		port:                        port,
-		cisAddress:                  cisAddress,
+		httpPort:                    httpPort,
+		grpcPort:                    grpcPort,
 		websocketConnectionsHandler: websocket.NewConnectionsHandler(),
 		cisClientPool:               clientPool,
 	}
 }
 
-//InitUniverse gets initial set of cells
-func (s *Server) InitUniverse() {
+//Init starts the server
+func (s *Server) Init() {
+	go s.listen()
 	s.fetchBigBang()
 }
 
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
-	go s.listen()
 	for {
 		s.step()
 	}
+}
+
+//Register cis-slave and create clients to make the slave useful
+func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
+	for i := 0; i < int(registration.Threads); i++ {
+		client, err := createCellInteractionClient(registration.Address)
+		if err != nil {
+			return nil, err
+		}
+		s.cisClientPool.AddClient(client)
+	}
+	return &proto.SlaveRegistrationResponse{}, nil
 }
 
 func (s *Server) fetchBigBang() {
@@ -77,17 +87,6 @@ func (s *Server) fetchBigBang() {
 	})
 }
 
-func (s *Server) withCellInteractionClient(f func(c proto.CellInteractionServiceClient)) {
-	conn, err := grpc.Dial(s.cisAddress, grpc.WithInsecure())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-	c := proto.NewCellInteractionServiceClient(conn)
-
-	f(c)
-}
-
 var upgrader = websocketConn.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -97,8 +96,21 @@ var upgrader = websocketConn.Upgrader{
 }
 
 func (s *Server) listen() {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.grpcPort))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	grpcServer := grpc.NewServer()
+	proto.RegisterSlaveRegistrationServiceServer(grpcServer, s)
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
 	http.HandleFunc("/", s.websocketHandler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.httpPort), nil))
 }
 
 func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +143,6 @@ func (s *Server) step() {
 				surroundingCells = append(surroundingCells, otherBucket...)
 			}
 		}
-
 		wg.Add(1)
 		batch := &proto.CellComputeBatch{
 			CellsToCompute:   bucket,
@@ -180,10 +191,10 @@ func withTimeout(timeout time.Duration, f func(ctx context.Context)) {
 	f(ctx)
 }
 
-func createCellInteractionClient(address string) proto.CellInteractionServiceClient {
+func createCellInteractionClient(address string) (proto.CellInteractionServiceClient, error) {
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		return nil, err
 	}
-	return proto.NewCellInteractionServiceClient(conn)
+	return proto.NewCellInteractionServiceClient(conn), nil
 }
