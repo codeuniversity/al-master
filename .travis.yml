@@ -13,8 +13,8 @@ install:
 # behaviour is disabled by default for packages within $GOPATH. -> Because Travis is copying the repo in the $GOPATH
 # you have to set the environment variable GO111MODULE=on to force the module behaviour.
 script:
-  - GO111MODULE=on go build -o $GOPATH/bin/main main/main.go
   - GO111MODULE=on make test
+  - GO111MODULE=on go build -o $GOPATH/bin/main main/main.go
   - GO111MODULE=on make image
 
 deploy:
