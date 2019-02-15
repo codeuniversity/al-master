@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/codeuniversity/al-master/websocket"
@@ -50,23 +51,7 @@ func (s *Server) InitUniverse() {
 func (s *Server) Run() {
 	go s.listen()
 	for {
-		withTimeout(100*time.Second, func(ctx context.Context) {
-			batch := &proto.CellComputeBatch{
-				CellsToCompute: s.cells,
-				TimeStep:       s.timeStep,
-			}
-			c := s.cisClientPool.GetClient()
-			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			s.cisClientPool.AddClient(c)
-			if err != nil {
-				panic(err)
-			}
-
-			s.cells = returnedBatch.CellsToCompute
-			s.timeStep++
-			fmt.Println(s.timeStep, ": ", len(s.cells))
-			s.broadcastCurrentState()
-		})
+		s.step()
 	}
 }
 
@@ -128,6 +113,65 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) broadcastCurrentState() {
 	s.websocketConnectionsHandler.BroadcastCells(s.cells)
+}
+
+func (s *Server) step() {
+	buckets := CreateBuckets(s.cells, 1000)
+	fmt.Println(len(buckets))
+	wg := &sync.WaitGroup{}
+	returnedBatchChan := make(chan *proto.CellComputeBatch)
+	doneChan := make(chan struct{})
+
+	go s.processReturnedBatches(returnedBatchChan, doneChan)
+
+	for key, bucket := range buckets {
+		surroundingCells := []*proto.Cell{}
+		for _, otherKey := range key.SurroundingKeys() {
+			if otherBucket, ok := buckets[otherKey]; ok {
+				surroundingCells = append(surroundingCells, otherBucket...)
+			}
+		}
+
+		wg.Add(1)
+		batch := &proto.CellComputeBatch{
+			CellsToCompute:   bucket,
+			CellsInProximity: surroundingCells,
+			TimeStep:         s.timeStep,
+		}
+		go s.callCIS(batch, wg, returnedBatchChan)
+	}
+
+	wg.Wait()
+	close(returnedBatchChan)
+	<-doneChan
+	s.timeStep++
+	fmt.Println(s.timeStep, ": ", len(s.cells))
+	s.broadcastCurrentState()
+}
+
+func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
+	looping := true
+	for looping {
+		withTimeout(10*time.Second, func(ctx context.Context) {
+			c := s.cisClientPool.GetClient()
+			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
+			s.cisClientPool.AddClient(c)
+			if err == nil {
+				returnedBatchChan <- returnedBatch
+				looping = false
+			}
+		})
+	}
+	wg.Done()
+}
+
+func (s *Server) processReturnedBatches(returnedBatchChan chan *proto.CellComputeBatch, doneChan chan struct{}) {
+	newCells := []*proto.Cell{}
+	for returnedBatch := range returnedBatchChan {
+		newCells = append(newCells, returnedBatch.CellsToCompute...)
+	}
+	s.cells = newCells
+	doneChan <- struct{}{}
 }
 
 func withTimeout(timeout time.Duration, f func(ctx context.Context)) {
