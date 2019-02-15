@@ -32,7 +32,7 @@ func TestRandomFloatBetweenTwoFloats(t *testing.T) {
 	})
 	t.Run("bot parameter minus values", func(t *testing.T) {
 		randomFloat := randomFloatBetweenTwoFloats(-1.5, -1.2)
-		assert.True(t, randomFloat >= -1.5 && randomFloat <= -1.2)
+		assert.False(t, randomFloat >= -1.5 && randomFloat <= -1.2)
 	})
 }
 
