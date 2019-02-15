@@ -22,15 +22,22 @@ type Server struct {
 	cells    []*proto.Cell
 	timeStep uint64
 
+	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
 }
 
 //NewServer with address to cis
-func NewServer(cisAddress string, port int) *Server {
+func NewServer(cisAddress string, cisConcurrentConns, connBufferSize int, port int) *Server {
+	clientPool := NewCISClientPool(connBufferSize)
+	for i := 0; i < cisConcurrentConns; i++ {
+		clientPool.AddClient(createCellInteractionClient(cisAddress))
+	}
+
 	return &Server{
 		port:                        port,
 		cisAddress:                  cisAddress,
 		websocketConnectionsHandler: websocket.NewConnectionsHandler(),
+		cisClientPool:               clientPool,
 	}
 }
 
@@ -42,46 +49,46 @@ func (s *Server) InitUniverse() {
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
 	go s.listen()
-	s.withCellInteractionClient(func(c proto.CellInteractionServiceClient) {
-		for {
-			withTimeout(100*time.Second, func(ctx context.Context) {
-				batch := &proto.CellComputeBatch{
-					CellsToCompute: s.cells,
-					TimeStep:       s.timeStep,
-				}
-				returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-				if err != nil {
-					panic(err)
-				}
-
-				s.cells = returnedBatch.CellsToCompute
-				s.timeStep++
-				fmt.Println(s.timeStep)
-				s.broadcastCurrentState()
-			})
-		}
-	})
-}
-
-func (s *Server) fetchBigBang() {
-	s.withCellInteractionClient(func(c proto.CellInteractionServiceClient) {
+	for {
 		withTimeout(100*time.Second, func(ctx context.Context) {
-			stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
+			batch := &proto.CellComputeBatch{
+				CellsToCompute: s.cells,
+				TimeStep:       s.timeStep,
+			}
+			c := s.cisClientPool.GetClient()
+			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
+			s.cisClientPool.AddClient(c)
 			if err != nil {
 				panic(err)
 			}
 
-			for {
-				cell, err := stream.Recv()
-				if err != nil {
-					if err != io.EOF {
-						log.Fatal(err)
-					}
-					break
-				}
-				s.cells = append(s.cells, cell)
-			}
+			s.cells = returnedBatch.CellsToCompute
+			s.timeStep++
+			fmt.Println(s.timeStep, ": ", len(s.cells))
+			s.broadcastCurrentState()
 		})
+	}
+}
+
+func (s *Server) fetchBigBang() {
+	withTimeout(100*time.Second, func(ctx context.Context) {
+		c := s.cisClientPool.GetClient()
+		defer s.cisClientPool.AddClient(c)
+		stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
+		if err != nil {
+			panic(err)
+		}
+
+		for {
+			cell, err := stream.Recv()
+			if err != nil {
+				if err != io.EOF {
+					log.Fatal(err)
+				}
+				break
+			}
+			s.cells = append(s.cells, cell)
+		}
 	})
 }
 
@@ -127,4 +134,12 @@ func withTimeout(timeout time.Duration, f func(ctx context.Context)) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	f(ctx)
+}
+
+func createCellInteractionClient(address string) proto.CellInteractionServiceClient {
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	return proto.NewCellInteractionServiceClient(conn)
 }
