@@ -9,5 +9,5 @@ image:
 
 docker-push:
 	echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-	docker tag al-master monteymontey/al-master:latest
-	docker push monteymontey/al-master:latest
+	docker tag al-master codealife/al-master:latest
+	docker push codealife/al-master:latest
