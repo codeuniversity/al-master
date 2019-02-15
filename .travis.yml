@@ -21,4 +21,8 @@ deploy:
   provider: script
   script: GO111MODULE=on make docker-push
   on:
-    branch: travis-ci
+    branch: master
+    condition: $TRAVIS_PULL_REQUEST = "false"
+
+# seems like it's not pushing image if tests fail
+# what happens if there's a pull request to master? is it built anyway
