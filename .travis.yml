@@ -6,8 +6,12 @@ services:
   - docker
 
 install:
-  - go get
+  - GO111MODULE=on go get # does download go.mod dependencies?
 
+# Explanation on GO111MODULE: Go 1.11 introduced Go modules (go.mod) which gives you the possibility to "go get"
+# packages with a specific version (normally go get always fetches the most recent one). In Go 1.11 the go module
+# behaviour is disabled by default for packages within $GOPATH. -> Because Travis is copying the repo in the $GOPATH
+# you have to set the environment variable GO111MODULE=on to force the module behaviour.
 script:
   - GO111MODULE=on make test
   - GO111MODULE=on go build -o $GOPATH/bin/output main/main.go
