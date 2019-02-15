@@ -14,11 +14,12 @@ env:
 # you have to set the environment variable GO111MODULE=on to force the module behaviour.
 script:
   - make test
-  - make image
 
 deploy:
   provider: script
-  script: make docker-push
+  script: >
+    make docker-push;
+    make image
   on:
     branch: master
     condition: $TRAVIS_PULL_REQUEST = "false"
