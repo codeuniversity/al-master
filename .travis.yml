@@ -18,8 +18,8 @@ script:
 deploy:
   provider: script
   script: >
-    make docker-push;
     make image
+    make docker-push;
   on:
     branch: master
     condition: $TRAVIS_PULL_REQUEST = "false"
