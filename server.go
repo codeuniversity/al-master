@@ -66,9 +66,9 @@ func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistra
 }
 
 func (s *Server) fetchBigBang() {
+	c := s.cisClientPool.GetClient()
+	defer s.cisClientPool.AddClient(c)
 	withTimeout(100*time.Second, func(ctx context.Context) {
-		c := s.cisClientPool.GetClient()
-		defer s.cisClientPool.AddClient(c)
 		stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
 		if err != nil {
 			panic(err)
@@ -163,8 +163,8 @@ func (s *Server) step() {
 func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
 	looping := true
 	for looping {
+		c := s.cisClientPool.GetClient()
 		withTimeout(10*time.Second, func(ctx context.Context) {
-			c := s.cisClientPool.GetClient()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
 			s.cisClientPool.AddClient(c)
 			if err == nil {
