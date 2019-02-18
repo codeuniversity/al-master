@@ -14,6 +14,8 @@ github.com/codeuniversity/al-proto v0.0.0-20190204170548-56c2f7bbec1d h1:GZ+dJzB
 github.com/codeuniversity/al-proto v0.0.0-20190204170548-56c2f7bbec1d/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/codeuniversity/al-proto v0.0.0-20190204173902-e991cb3a1cf3 h1:Pd5eoaXr1QxaxsrGipFd3xSvV2eQm0g/QzOR74h0NSw=
 github.com/codeuniversity/al-proto v0.0.0-20190204173902-e991cb3a1cf3/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
+github.com/codeuniversity/al-proto v0.0.0-20190215151415-e6e805b06c9b h1:ymQoa4rrvVx6ISVMhbglTEkgFGp009f3wdeWglzRJuM=
+github.com/codeuniversity/al-proto v0.0.0-20190215151415-e6e805b06c9b/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/lint v0.0.0-20180702182130-06c8688daad7/go.mod h1:tluoj9z5200jBnyusfRPU2LqT6J+DAorxEvtC7LHB+E=

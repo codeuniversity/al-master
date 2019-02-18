@@ -2,11 +2,12 @@ package master
 
 import (
 	"fmt"
-	"github.com/codeuniversity/al-proto"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/codeuniversity/al-proto"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRandomFloatBetweenTwoFloats(t *testing.T) {
@@ -36,7 +37,7 @@ func TestRandomFloatBetweenTwoFloats(t *testing.T) {
 	})
 }
 
-func TestKeyFor(t *testing.T) {
+func TestBucketKeyFor(t *testing.T) {
 	t.Run("with positive values", func(t *testing.T) {
 		cell := &proto.Cell{
 			Pos: &proto.Vector{
@@ -46,8 +47,8 @@ func TestKeyFor(t *testing.T) {
 			},
 		}
 		batchSize := uint(2)
-		key := keyFor(cell.Pos, batchSize)
-		expectedKey := "2/2/4"
+		key := bucketKeyFor(cell.Pos, batchSize)
+		expectedKey := BucketKey("2/2/4")
 		assert.Equal(t, expectedKey, key)
 	})
 	t.Run("positive & negative values", func(t *testing.T) {
@@ -59,10 +60,21 @@ func TestKeyFor(t *testing.T) {
 			},
 		}
 		batchSize := uint(2)
-		key := keyFor(cell.Pos, batchSize)
-		expectedKey := "-2/-2/4"
+		key := bucketKeyFor(cell.Pos, batchSize)
+		expectedKey := BucketKey("-2/-2/4")
 		assert.Equal(t, expectedKey, key)
 	})
+}
+
+func TestSurroundingKeys(t *testing.T) {
+	bk := BucketKey("1/1/1")
+	sKeys := bk.SurroundingKeys()
+	assert.Len(t, sKeys, 26)
+	assert.Equal(
+		t,
+		[]BucketKey{"0/0/0", "0/0/1", "0/0/2", "0/1/0", "0/1/1", "0/1/2", "0/2/0", "0/2/1", "0/2/2", "1/0/0", "1/0/1", "1/0/2", "1/1/0", "1/1/2", "1/2/0", "1/2/1", "1/2/2", "2/0/0", "2/0/1", "2/0/2", "2/1/0", "2/1/1", "2/1/2", "2/2/0", "2/2/1", "2/2/2"},
+		sKeys,
+	)
 }
 
 func TestCreateBuckets(t *testing.T) {
@@ -112,9 +124,8 @@ func randomFloatBetweenTwoFloats(float1 float32, float2 float32) float32 {
 
 	if float1 < float2 {
 		return float1 + rng.Float32()*(float2-float1)
-	} else {
-		return float2 + rng.Float32()*(float1-float2)
 	}
+	return float2 + rng.Float32()*(float1-float2)
 }
 
 func createRandomCells(quantity uint, minX float32, maxX float32, minY float32, maxY float32, minZ float32, maxZ float32) (cells []*proto.Cell) {

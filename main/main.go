@@ -3,14 +3,13 @@ package main
 import master "github.com/codeuniversity/al-master"
 
 const (
-	address    = "localhost:5000"
-	threads    = 10
-	bufferSize = threads
-	port       = 4000
+	bufferSize = 1000
+	httpPort   = 4000
+	grpcPort   = 3000
 )
 
 func main() {
-	s := master.NewServer(address, threads, bufferSize, port)
-	s.InitUniverse()
+	s := master.NewServer(bufferSize, httpPort, grpcPort)
+	s.Init()
 	s.Run()
 }
