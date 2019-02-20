@@ -2,12 +2,16 @@ package master
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/codeuniversity/al-master/websocket"
@@ -21,8 +25,8 @@ type Server struct {
 	httpPort int
 	grpcPort int
 
-	cells    []*proto.Cell
-	timeStep uint64
+	Cells    []*proto.Cell
+	TimeStep uint64
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
@@ -48,9 +52,45 @@ func (s *Server) Init() {
 
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	shutDown := false
+
+	go listenForSignals(signals, &shutDown)
+
 	for {
+		if shutDown {
+			break
+		}
 		s.step()
 	}
+
+	err := s.saveState()
+	if err == nil {
+		fmt.Println("\nState successfully saved")
+	} else {
+		fmt.Println("\nState could not be saved:", err)
+	}
+}
+
+func listenForSignals(signals chan os.Signal, shutDown *bool) {
+	sig := <-signals
+	*shutDown = true
+	fmt.Println("Received Signal:", sig)
+}
+
+func (s *Server) saveState() error {
+	file, err := os.Create("./state.gob")
+	if err == nil {
+		encoder := gob.NewEncoder(file)
+		encodeErr := encoder.Encode(s)
+		if encodeErr == nil {
+			closeErr := file.Close()
+			return closeErr
+		}
+		return encodeErr
+	}
+	return err
 }
 
 //Register cis-slave and create clients to make the slave useful
@@ -82,7 +122,7 @@ func (s *Server) fetchBigBang() {
 				}
 				break
 			}
-			s.cells = append(s.cells, cell)
+			s.Cells = append(s.Cells, cell)
 		}
 	})
 }
@@ -124,11 +164,11 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) broadcastCurrentState() {
-	s.websocketConnectionsHandler.BroadcastCells(s.cells)
+	s.websocketConnectionsHandler.BroadcastCells(s.Cells)
 }
 
 func (s *Server) step() {
-	buckets := CreateBuckets(s.cells, 1000)
+	buckets := CreateBuckets(s.Cells, 1000)
 	fmt.Println(len(buckets))
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
@@ -147,7 +187,7 @@ func (s *Server) step() {
 		batch := &proto.CellComputeBatch{
 			CellsToCompute:   bucket,
 			CellsInProximity: surroundingCells,
-			TimeStep:         s.timeStep,
+			TimeStep:         s.TimeStep,
 		}
 		go s.callCIS(batch, wg, returnedBatchChan)
 	}
@@ -155,8 +195,8 @@ func (s *Server) step() {
 	wg.Wait()
 	close(returnedBatchChan)
 	<-doneChan
-	s.timeStep++
-	fmt.Println(s.timeStep, ": ", len(s.cells))
+	s.TimeStep++
+	fmt.Println(s.TimeStep, ": ", len(s.Cells))
 	s.broadcastCurrentState()
 }
 
@@ -181,7 +221,7 @@ func (s *Server) processReturnedBatches(returnedBatchChan chan *proto.CellComput
 	for returnedBatch := range returnedBatchChan {
 		newCells = append(newCells, returnedBatch.CellsToCompute...)
 	}
-	s.cells = newCells
+	s.Cells = newCells
 	doneChan <- struct{}{}
 }
 
