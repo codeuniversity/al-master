@@ -34,6 +34,7 @@ type Server struct {
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
+	grpcServer                  *grpc.Server
 }
 
 //NewServer with address to cis
@@ -69,6 +70,7 @@ func (s *Server) Run() {
 
 	for {
 		if len(signals) != 0 {
+			s.grpcServer.Stop()
 			fmt.Println("Received Signal:", <-signals)
 			break
 		}
@@ -175,11 +177,11 @@ func (s *Server) listen() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
-	proto.RegisterSlaveRegistrationServiceServer(grpcServer, s)
+	s.grpcServer = grpc.NewServer()
+	proto.RegisterSlaveRegistrationServiceServer(s.grpcServer, s)
 
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
+		if err := s.grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
