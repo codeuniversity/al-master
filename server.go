@@ -62,15 +62,14 @@ func (s *Server) Init(loadState bool) {
 func (s *Server) Run() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	shutDown := false
-
-	go listenForSignals(signals, &shutDown)
 
 	for {
-		if shutDown {
+		if len(signals) != 0 {
+			fmt.Println("Received Signal:", <-signals)
 			break
 		}
 		s.step()
+		fmt.Println("length of signal channel: ", len(signals))
 	}
 
 	err := s.saveState()
@@ -79,12 +78,6 @@ func (s *Server) Run() {
 	} else {
 		fmt.Println("\nState could not be saved:", err)
 	}
-}
-
-func listenForSignals(signals chan os.Signal, shutDown *bool) {
-	sig := <-signals
-	*shutDown = true
-	fmt.Println("Received Signal:", sig)
 }
 
 func (s *Server) saveState() error {
