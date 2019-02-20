@@ -82,34 +82,26 @@ func (s *Server) Run() {
 
 func (s *Server) saveState() error {
 	file, err := os.Create("./state.gob")
-	if err == nil {
-		encoder := gob.NewEncoder(file)
-		encodeErr := encoder.Encode(s)
-		if encodeErr == nil {
-			closeErr := file.Close()
-			return closeErr
-		}
-		return encodeErr
+	if err != nil {
+		return err
+	}
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(s)
+	if err != nil {
+		return file.Close()
 	}
 	return err
 }
 
 func (s *Server) loadState() error {
-	diskState := &Server{}
-
 	file, err := os.Open("./state.gob")
-	if err == nil {
-		decoder := gob.NewDecoder(file)
-		decodeErr := decoder.Decode(diskState)
-		if decodeErr == nil {
-			closeErr := file.Close()
-			if closeErr == nil {
-				s.Cells = diskState.Cells
-				s.TimeStep = diskState.TimeStep
-			}
-			return closeErr
-		}
-		return decodeErr
+	if err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&s)
+	if err != nil {
+		return file.Close()
 	}
 	return err
 }
