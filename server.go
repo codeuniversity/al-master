@@ -45,9 +45,17 @@ func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
 }
 
 //Init starts the server
-func (s *Server) Init() {
+func (s *Server) Init(loadState bool) {
 	go s.listen()
-	s.fetchBigBang()
+	if loadState {
+		err := s.loadState()
+		if err != nil {
+			fmt.Println("Couldn't load previous state, fetching big bang now", err)
+			s.fetchBigBang()
+		}
+	} else {
+		s.fetchBigBang()
+	}
 }
 
 //Run offloads the computation of changes to cis
@@ -89,6 +97,26 @@ func (s *Server) saveState() error {
 			return closeErr
 		}
 		return encodeErr
+	}
+	return err
+}
+
+func (s *Server) loadState() error {
+	diskState := &Server{}
+
+	file, err := os.Open("./state.gob")
+	if err == nil {
+		decoder := gob.NewDecoder(file)
+		decodeErr := decoder.Decode(diskState)
+		if decodeErr == nil {
+			closeErr := file.Close()
+			if closeErr == nil {
+				s.Cells = diskState.Cells
+				s.TimeStep = diskState.TimeStep
+			}
+			return closeErr
+		}
+		return decodeErr
 	}
 	return err
 }

@@ -1,6 +1,9 @@
 package main
 
-import master "github.com/codeuniversity/al-master"
+import (
+	"flag"
+	master "github.com/codeuniversity/al-master"
+)
 
 const (
 	bufferSize = 1000
@@ -9,7 +12,10 @@ const (
 )
 
 func main() {
+	boolPtr := flag.Bool("loadState", false, "specify if you want to load the previous saved simulation state")
+	flag.Parse()
+
 	s := master.NewServer(bufferSize, httpPort, grpcPort)
-	s.Init()
+	s.Init(*boolPtr)
 	s.Run()
 }
