@@ -4,20 +4,24 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"github.com/codeuniversity/al-master/websocket"
+	"github.com/codeuniversity/al-proto"
+	websocketConn "github.com/gorilla/websocket"
+	"google.golang.org/grpc"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
+)
 
-	"github.com/codeuniversity/al-master/websocket"
-	"github.com/codeuniversity/al-proto"
-	websocketConn "github.com/gorilla/websocket"
-	"google.golang.org/grpc"
+const (
+	statesFolderName = "states"
 )
 
 //Server that manages cell changes
@@ -45,13 +49,13 @@ func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
 }
 
 //Init starts the server
-func (s *Server) Init(loadState bool) {
+func (s *Server) Init(stateName string) {
 	go s.listen()
-	if loadState {
-		err := s.loadState()
+	if stateName != "" {
+		err := s.loadState(filepath.Join(statesFolderName, stateName))
 		if err != nil {
-			fmt.Println("Couldn't load previous state, fetching big bang now", err)
-			s.fetchBigBang()
+			fmt.Println("\nLoading state failed, exiting now", err)
+			panic(err)
 		}
 	} else {
 		s.fetchBigBang()
@@ -69,7 +73,6 @@ func (s *Server) Run() {
 			break
 		}
 		s.step()
-		fmt.Println("length of signal channel: ", len(signals))
 	}
 
 	err := s.saveState()
@@ -80,8 +83,23 @@ func (s *Server) Run() {
 	}
 }
 
+func createDirIfNotExist(dir string) error {
+	_, err := os.Stat(filepath.Join(dir))
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func (s *Server) saveState() error {
-	file, err := os.Create("./state.gob")
+	err := createDirIfNotExist(statesFolderName)
+	if err != nil {
+		return err
+	}
+	file, err := os.Create(s.buildStateFilePath())
 	if err != nil {
 		return err
 	}
@@ -93,8 +111,8 @@ func (s *Server) saveState() error {
 	return err
 }
 
-func (s *Server) loadState() error {
-	file, err := os.Open("./state.gob")
+func (s *Server) loadState(statePath string) error {
+	file, err := os.Open(statePath)
 	if err != nil {
 		return err
 	}
@@ -104,6 +122,10 @@ func (s *Server) loadState() error {
 		return file.Close()
 	}
 	return err
+}
+
+func (s *Server) buildStateFilePath() string {
+	return filepath.Join(statesFolderName, string(time.Now().Format("20060102150405")))
 }
 
 //Register cis-slave and create clients to make the slave useful

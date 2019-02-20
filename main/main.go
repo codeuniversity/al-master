@@ -12,10 +12,10 @@ const (
 )
 
 func main() {
-	boolPtr := flag.Bool("loadState", false, "specify if you want to load the previous saved simulation state")
+	stringPtr := flag.String("stateName", "", "specify the state name you want to load")
 	flag.Parse()
 
 	s := master.NewServer(bufferSize, httpPort, grpcPort)
-	s.Init(*boolPtr)
+	s.Init(*stringPtr)
 	s.Run()
 }
