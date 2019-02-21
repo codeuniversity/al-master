@@ -82,7 +82,7 @@ func (s *Server) Run() {
 		s.step()
 	}
 
-	err := s.saveState()
+	err := s.saveState(time.Now())
 	if err == nil {
 		fmt.Println("\nState successfully saved")
 	} else {
@@ -101,21 +101,26 @@ func createDirIfNotExist(dir string) error {
 	return err
 }
 
-func (s *Server) saveState() error {
+func (s *Server) saveState(saveTime time.Time) error {
 	err := createDirIfNotExist(statesFolderName)
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(s.buildStateFilePath())
+	temporaryPath := s.buildTemporaryStateFilePath(saveTime)
+	file, err := os.Create(temporaryPath)
 	if err != nil {
 		return err
 	}
 	encoder := gob.NewEncoder(file)
 	err = encoder.Encode(s)
 	if err != nil {
-		return file.Close()
+		return err
 	}
-	return err
+	err = file.Close()
+	if err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, s.buildStateFilePath(saveTime))
 }
 
 func (s *Server) loadState(statePath string) error {
@@ -126,13 +131,17 @@ func (s *Server) loadState(statePath string) error {
 	decoder := gob.NewDecoder(file)
 	err = decoder.Decode(&s)
 	if err != nil {
-		return file.Close()
+		return err
 	}
-	return err
+	return file.Close()
 }
 
-func (s *Server) buildStateFilePath() string {
-	return filepath.Join(statesFolderName, string(time.Now().Format("20060102150405")))
+func (s *Server) buildStateFilePath(saveTime time.Time) string {
+	return filepath.Join(statesFolderName, string(saveTime.Format("20060102150405")))
+}
+
+func (s *Server) buildTemporaryStateFilePath(saveTime time.Time) string {
+	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
 }
 
 //Register cis-slave and create clients to make the slave useful
