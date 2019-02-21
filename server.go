@@ -24,10 +24,16 @@ const (
 	statesFolderName = "states"
 )
 
+type ServerConfig struct {
+	ConnBufferSize int
+	GrpcPort       int
+	HttpPort       int
+	StateFileName  string
+}
+
 //Server that manages cell changes
 type Server struct {
-	httpPort int
-	grpcPort int
+	ServerConfig
 
 	Cells    []*proto.Cell
 	TimeStep uint64
@@ -38,22 +44,21 @@ type Server struct {
 }
 
 //NewServer with address to cis
-func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
-	clientPool := NewCISClientPool(connBufferSize)
+func NewServer(config ServerConfig) *Server {
+	clientPool := NewCISClientPool(config.ConnBufferSize)
 
 	return &Server{
-		httpPort:                    httpPort,
-		grpcPort:                    grpcPort,
+		ServerConfig:                config,
 		websocketConnectionsHandler: websocket.NewConnectionsHandler(),
 		cisClientPool:               clientPool,
 	}
 }
 
 //Init starts the server
-func (s *Server) Init(stateName string) {
+func (s *Server) Init() {
 	go s.listen()
-	if stateName != "" {
-		err := s.loadState(filepath.Join(statesFolderName, stateName))
+	if s.StateFileName != "" {
+		err := s.loadState(filepath.Join(statesFolderName, s.StateFileName))
 		if err != nil {
 			fmt.Println("\nLoading state failed, exiting now", err)
 			panic(err)
@@ -173,7 +178,7 @@ var upgrader = websocketConn.Upgrader{
 }
 
 func (s *Server) listen() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.GrpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -187,7 +192,7 @@ func (s *Server) listen() {
 	}()
 
 	http.HandleFunc("/", s.websocketHandler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.httpPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.HttpPort), nil))
 }
 
 func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {

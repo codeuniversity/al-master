@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	master "github.com/codeuniversity/al-master"
+	"github.com/codeuniversity/al-master"
 )
 
 const (
@@ -12,10 +12,16 @@ const (
 )
 
 func main() {
-	stringPtr := flag.String("stateName", "", "specify the state name you want to load")
+	config := master.ServerConfig{
+		ConnBufferSize: bufferSize,
+		GrpcPort:       grpcPort,
+		HttpPort:       httpPort,
+	}
+
+	flag.StringVar(&config.StateFileName, "state_from_file", "", "specify the state name you want to load")
 	flag.Parse()
 
-	s := master.NewServer(bufferSize, httpPort, grpcPort)
-	s.Init(*stringPtr)
+	s := master.NewServer(config)
+	s.Init()
 	s.Run()
 }
