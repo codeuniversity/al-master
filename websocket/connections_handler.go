@@ -23,7 +23,12 @@ func NewConnectionsHandler() *ConnectionsHandler {
 	}
 }
 
-func (h *ConnectionsHandler) CloseActiveConnections() {
+//Shutdown closes all active websocket connections
+func (h *ConnectionsHandler) Shutdown() {
+	h.closeActiveConnections()
+}
+
+func (h *ConnectionsHandler) closeActiveConnections() {
 	for _, conn := range h.conns {
 		if err := conn.Conn.Close(); err != nil {
 			log.Println("Couldn't close websocket connection", err)

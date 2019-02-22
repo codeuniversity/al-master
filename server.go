@@ -16,6 +16,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -25,10 +27,11 @@ const (
 	statesFolderName = "states"
 )
 
+//ServerConfig contains config data for Server
 type ServerConfig struct {
 	ConnBufferSize  int
-	GrpcPort        int
-	HttpPort        int
+	GRPCPort        int
+	HTTPPort        int
 	StateFileName   string
 	LoadLatestState bool
 }
@@ -62,25 +65,23 @@ func NewServer(config ServerConfig) *Server {
 func (s *Server) Init() {
 	go s.listen()
 
-	if s.StateFileName != "" && s.LoadLatestState {
-		log.Fatal("You shouldn't use the flags -state_from_file and -load_latest_state at the same time")
-	}
-
 	if s.StateFileName != "" {
 		if err := s.loadState(filepath.Join(statesFolderName, s.StateFileName)); err != nil {
 			fmt.Println("\nLoading state from filepath failed, exiting now", err)
 			panic(err)
 		}
-	} else {
-		if s.LoadLatestState {
-			if err := s.loadLatestState(); err != nil {
-				fmt.Println("\nLoading latest state failed, exiting now", err)
-				panic(err)
-			}
-		} else {
-			s.fetchBigBang()
-		}
+		return
 	}
+
+	if s.LoadLatestState {
+		if err := s.loadLatestState(); err != nil {
+			fmt.Println("\nLoading latest state failed, exiting now", err)
+			panic(err)
+		}
+		return
+	}
+
+	s.fetchBigBang()
 }
 
 //Run offloads the computation of changes to cis
@@ -99,7 +100,7 @@ func (s *Server) Run() {
 }
 
 func (s *Server) shutdown() {
-	s.websocketConnectionsHandler.CloseActiveConnections()
+	s.websocketConnectionsHandler.Shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -159,25 +160,37 @@ func (s *Server) loadLatestState() error {
 	if err != nil {
 		return err
 	}
-	latestStateName := files[indexOfNewestFile(files)].Name()
-	if err := s.loadState(filepath.Join(statesFolderName, latestStateName)); err != nil {
-		return err
-	}
-	return err
+	latestStateName := nameOfLatestState(files)
+	return s.loadState(filepath.Join(statesFolderName, latestStateName))
 }
 
-func indexOfNewestFile(files []os.FileInfo) uint {
-	var newestFileIndex int
-	for i, f := range files {
-		if f.ModTime().UnixNano() >= files[newestFileIndex].ModTime().UnixNano() {
-			newestFileIndex = i
+func nameOfLatestState(files []os.FileInfo) (latestStateName string) {
+	var latestStateInt int64
+
+	for _, f := range files {
+		stateName := f.Name()
+		stateInt, _ := stateNameToInt(stateName)
+
+		if stateNameValid(stateName) && stateInt > latestStateInt {
+			latestStateName = stateName
+			latestStateInt = stateInt
 		}
 	}
-	return uint(newestFileIndex)
+	return
+}
+
+//the regex will break in the year 10000, so somebody should update it in 7981 years xDDD
+func stateNameValid(stateName string) bool {
+	var validStateName = regexp.MustCompile(`STATE_[0-9]{14}`)
+	return validStateName.MatchString(stateName)
+}
+
+func stateNameToInt(stateName string) (int64, error) {
+	return strconv.ParseInt(stateName[6:], 10, 64)
 }
 
 func buildStateFilePath(saveTime time.Time) string {
-	return filepath.Join(statesFolderName, string(saveTime.Format("20060102150405")))
+	return filepath.Join(statesFolderName, "STATE_"+string(saveTime.Format("20060102150405")))
 }
 
 func buildTemporaryStateFilePath(saveTime time.Time) string {
@@ -227,7 +240,7 @@ var upgrader = websocketConn.Upgrader{
 }
 
 func (s *Server) listen() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.GrpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.GRPCPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -241,7 +254,7 @@ func (s *Server) listen() {
 	}()
 
 	http.HandleFunc("/", s.websocketHandler)
-	s.httpServer = &http.Server{Addr: fmt.Sprintf(":%v", s.HttpPort), Handler: nil}
+	s.httpServer = &http.Server{Addr: fmt.Sprintf(":%v", s.HTTPPort), Handler: nil}
 	if err := s.httpServer.ListenAndServe(); err != nil {
 		log.Println(err)
 	}
