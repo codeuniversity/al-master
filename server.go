@@ -40,7 +40,9 @@ type Server struct {
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
-	grpcServer                  *grpc.Server
+
+	grpcServer *grpc.Server
+	httpServer *http.Server
 }
 
 //NewServer with address to cis
@@ -75,14 +77,27 @@ func (s *Server) Run() {
 
 	for {
 		if len(signals) != 0 {
-			s.grpcServer.Stop()
 			fmt.Println("Received Signal:", <-signals)
 			break
 		}
 		s.step()
 	}
+	s.shutdown()
+}
 
-	err := s.saveState(time.Now())
+func (s *Server) shutdown() {
+	s.websocketConnectionsHandler.CloseActiveConnections()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	err := s.httpServer.Shutdown(ctx)
+	if err != nil {
+		fmt.Println("Couldn't shutdown http server", err)
+	}
+	s.grpcServer.Stop()
+
+	err = s.saveState()
 	if err == nil {
 		fmt.Println("\nState successfully saved")
 	} else {
@@ -90,23 +105,13 @@ func (s *Server) Run() {
 	}
 }
 
-func createDirIfNotExist(dir string) error {
-	_, err := os.Stat(filepath.Join(dir))
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			return err
-		}
-	}
-	return err
-}
-
-func (s *Server) saveState(saveTime time.Time) error {
-	err := createDirIfNotExist(statesFolderName)
+func (s *Server) saveState() error {
+	saveTime := time.Now()
+	err := os.MkdirAll(statesFolderName, 0755)
 	if err != nil {
 		return err
 	}
-	temporaryPath := s.buildTemporaryStateFilePath(saveTime)
+	temporaryPath := buildTemporaryStateFilePath(saveTime)
 	file, err := os.Create(temporaryPath)
 	if err != nil {
 		return err
@@ -120,7 +125,7 @@ func (s *Server) saveState(saveTime time.Time) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(temporaryPath, s.buildStateFilePath(saveTime))
+	return os.Rename(temporaryPath, buildStateFilePath(saveTime))
 }
 
 func (s *Server) loadState(statePath string) error {
@@ -136,11 +141,11 @@ func (s *Server) loadState(statePath string) error {
 	return file.Close()
 }
 
-func (s *Server) buildStateFilePath(saveTime time.Time) string {
+func buildStateFilePath(saveTime time.Time) string {
 	return filepath.Join(statesFolderName, string(saveTime.Format("20060102150405")))
 }
 
-func (s *Server) buildTemporaryStateFilePath(saveTime time.Time) string {
+func buildTemporaryStateFilePath(saveTime time.Time) string {
 	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
 }
 
@@ -201,7 +206,10 @@ func (s *Server) listen() {
 	}()
 
 	http.HandleFunc("/", s.websocketHandler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.HttpPort), nil))
+	s.httpServer = &http.Server{Addr: fmt.Sprintf(":%v", s.HttpPort), Handler: nil}
+	if err := s.httpServer.ListenAndServe(); err != nil {
+		log.Println(err)
+	}
 }
 
 func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
