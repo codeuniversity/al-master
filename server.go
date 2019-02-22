@@ -9,6 +9,7 @@ import (
 	websocketConn "github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -25,10 +26,11 @@ const (
 )
 
 type ServerConfig struct {
-	ConnBufferSize int
-	GrpcPort       int
-	HttpPort       int
-	StateFileName  string
+	ConnBufferSize  int
+	GrpcPort        int
+	HttpPort        int
+	StateFileName   string
+	LoadLatestState bool
 }
 
 //Server that manages cell changes
@@ -59,14 +61,25 @@ func NewServer(config ServerConfig) *Server {
 //Init starts the server
 func (s *Server) Init() {
 	go s.listen()
+
+	if s.StateFileName != "" && s.LoadLatestState {
+		log.Fatal("You shouldn't use the flags -state_from_file and -load_latest_state at the same time")
+	}
+
 	if s.StateFileName != "" {
-		err := s.loadState(filepath.Join(statesFolderName, s.StateFileName))
-		if err != nil {
-			fmt.Println("\nLoading state failed, exiting now", err)
+		if err := s.loadState(filepath.Join(statesFolderName, s.StateFileName)); err != nil {
+			fmt.Println("\nLoading state from filepath failed, exiting now", err)
 			panic(err)
 		}
 	} else {
-		s.fetchBigBang()
+		if s.LoadLatestState {
+			if err := s.loadLatestState(); err != nil {
+				fmt.Println("\nLoading latest state failed, exiting now", err)
+				panic(err)
+			}
+		} else {
+			s.fetchBigBang()
+		}
 	}
 }
 
@@ -139,6 +152,28 @@ func (s *Server) loadState(statePath string) error {
 		return err
 	}
 	return file.Close()
+}
+
+func (s *Server) loadLatestState() error {
+	files, err := ioutil.ReadDir(filepath.Join(statesFolderName))
+	if err != nil {
+		return err
+	}
+	latestStateName := files[indexOfNewestFile(files)].Name()
+	if err := s.loadState(filepath.Join(statesFolderName, latestStateName)); err != nil {
+		return err
+	}
+	return err
+}
+
+func indexOfNewestFile(files []os.FileInfo) uint {
+	var newestFileIndex int
+	for i, f := range files {
+		if f.ModTime().UnixNano() >= files[newestFileIndex].ModTime().UnixNano() {
+			newestFileIndex = i
+		}
+	}
+	return uint(newestFileIndex)
 }
 
 func buildStateFilePath(saveTime time.Time) string {

@@ -18,7 +18,9 @@ func main() {
 		HttpPort:       httpPort,
 	}
 
-	flag.StringVar(&config.StateFileName, "state_from_file", "", "specify the state name you want to load")
+	flag.StringVar(&config.StateFileName, "state_from_file", "", "input the state name you want to load")
+	flag.BoolVar(&config.LoadLatestState, "load_latest_state", false, "specify if you want to load the "+
+		"latest state, by default true")
 	flag.Parse()
 
 	s := master.NewServer(config)
