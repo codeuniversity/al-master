@@ -3,6 +3,7 @@ package master
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -132,7 +133,7 @@ func createRandomCells(quantity uint, minX float32, maxX float32, minY float32, 
 	var cell proto.Cell
 	for i := uint(0); i < quantity; i++ {
 		cell = proto.Cell{
-			Id: uint64(i),
+			Id: strconv.FormatInt(int64(i), 10),
 			Pos: &proto.Vector{
 				X: randomFloatBetweenTwoFloats(minX, maxX),
 				Y: randomFloatBetweenTwoFloats(minY, maxY),
