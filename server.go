@@ -179,9 +179,8 @@ func nameOfLatestState(files []os.FileInfo) (latestStateName string) {
 	return
 }
 
-//the regex will break in the year 10000, so somebody should update it in 7981 years xDDD
 func stateNameValid(stateName string) bool {
-	var validStateName = regexp.MustCompile(`STATE_[0-9]{14}`)
+	var validStateName = regexp.MustCompile(`STATE_[0-9]`)
 	return validStateName.MatchString(stateName)
 }
 
