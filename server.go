@@ -2,39 +2,60 @@ package master
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/http"
-	"sync"
-	"time"
-
 	"github.com/codeuniversity/al-master/websocket"
 	"github.com/codeuniversity/al-proto"
 	websocketConn "github.com/gorilla/websocket"
 	"google.golang.org/grpc"
+	"io"
+	"io/ioutil"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"sync"
+	"syscall"
+	"time"
 )
+
+const (
+	statesFolderName = "states"
+)
+
+//ServerConfig contains config data for Server
+type ServerConfig struct {
+	ConnBufferSize  int
+	GRPCPort        int
+	HTTPPort        int
+	StateFileName   string
+	LoadLatestState bool
+}
 
 //Server that manages cell changes
 type Server struct {
-	httpPort int
-	grpcPort int
+	ServerConfig
 
-	cells    []*proto.Cell
-	timeStep uint64
+	Cells    []*proto.Cell
+	TimeStep uint64
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
+
+	grpcServer *grpc.Server
+	httpServer *http.Server
 }
 
 //NewServer with address to cis
-func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
-	clientPool := NewCISClientPool(connBufferSize)
+func NewServer(config ServerConfig) *Server {
+	clientPool := NewCISClientPool(config.ConnBufferSize)
 
 	return &Server{
-		httpPort:                    httpPort,
-		grpcPort:                    grpcPort,
+		ServerConfig:                config,
 		websocketConnectionsHandler: websocket.NewConnectionsHandler(),
 		cisClientPool:               clientPool,
 	}
@@ -43,14 +64,136 @@ func NewServer(connBufferSize int, httpPort, grpcPort int) *Server {
 //Init starts the server
 func (s *Server) Init() {
 	go s.listen()
+
+	if s.StateFileName != "" {
+		if err := s.loadState(filepath.Join(statesFolderName, s.StateFileName)); err != nil {
+			fmt.Println("\nLoading state from filepath failed, exiting now", err)
+			panic(err)
+		}
+		return
+	}
+
+	if s.LoadLatestState {
+		if err := s.loadLatestState(); err != nil {
+			fmt.Println("\nLoading latest state failed, exiting now", err)
+			panic(err)
+		}
+		return
+	}
+
 	s.fetchBigBang()
 }
 
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
 	for {
+		if len(signals) != 0 {
+			fmt.Println("Received Signal:", <-signals)
+			break
+		}
 		s.step()
 	}
+	s.shutdown()
+}
+
+func (s *Server) shutdown() {
+	s.websocketConnectionsHandler.Shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	err := s.httpServer.Shutdown(ctx)
+	if err != nil {
+		fmt.Println("Couldn't shutdown http server", err)
+	}
+	s.grpcServer.Stop()
+
+	err = s.saveState()
+	if err == nil {
+		fmt.Println("\nState successfully saved")
+	} else {
+		fmt.Println("\nState could not be saved:", err)
+	}
+}
+
+func (s *Server) saveState() error {
+	saveTime := time.Now()
+	err := os.MkdirAll(statesFolderName, 0755)
+	if err != nil {
+		return err
+	}
+	temporaryPath := buildTemporaryStateFilePath(saveTime)
+	file, err := os.Create(temporaryPath)
+	if err != nil {
+		return err
+	}
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(s)
+	if err != nil {
+		return err
+	}
+	err = file.Close()
+	if err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, buildStateFilePath(saveTime))
+}
+
+func (s *Server) loadState(statePath string) error {
+	file, err := os.Open(statePath)
+	if err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&s)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
+func (s *Server) loadLatestState() error {
+	files, err := ioutil.ReadDir(filepath.Join(statesFolderName))
+	if err != nil {
+		return err
+	}
+	latestStateName := nameOfLatestState(files)
+	return s.loadState(filepath.Join(statesFolderName, latestStateName))
+}
+
+func nameOfLatestState(files []os.FileInfo) (latestStateName string) {
+	var latestStateInt int64
+
+	for _, f := range files {
+		stateName := f.Name()
+		stateInt, _ := stateNameToInt(stateName)
+
+		if stateNameValid(stateName) && stateInt > latestStateInt {
+			latestStateName = stateName
+			latestStateInt = stateInt
+		}
+	}
+	return
+}
+
+func stateNameValid(stateName string) bool {
+	var validStateName = regexp.MustCompile(`STATE_\d+`)
+	return validStateName.MatchString(stateName)
+}
+
+func stateNameToInt(stateName string) (int64, error) {
+	return strconv.ParseInt(stateName[6:], 10, 64)
+}
+
+func buildStateFilePath(saveTime time.Time) string {
+	return filepath.Join(statesFolderName, "STATE_"+string(saveTime.Format("20060102150405")))
+}
+
+func buildTemporaryStateFilePath(saveTime time.Time) string {
+	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
 }
 
 //Register cis-slave and create clients to make the slave useful
@@ -82,7 +225,7 @@ func (s *Server) fetchBigBang() {
 				}
 				break
 			}
-			s.cells = append(s.cells, cell)
+			s.Cells = append(s.Cells, cell)
 		}
 	})
 }
@@ -96,21 +239,24 @@ var upgrader = websocketConn.Upgrader{
 }
 
 func (s *Server) listen() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.GRPCPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
-	proto.RegisterSlaveRegistrationServiceServer(grpcServer, s)
+	s.grpcServer = grpc.NewServer()
+	proto.RegisterSlaveRegistrationServiceServer(s.grpcServer, s)
 
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
+		if err := s.grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
 	http.HandleFunc("/", s.websocketHandler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", s.httpPort), nil))
+	s.httpServer = &http.Server{Addr: fmt.Sprintf(":%v", s.HTTPPort), Handler: nil}
+	if err := s.httpServer.ListenAndServe(); err != nil {
+		log.Println(err)
+	}
 }
 
 func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -124,11 +270,11 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) broadcastCurrentState() {
-	s.websocketConnectionsHandler.BroadcastCells(s.cells)
+	s.websocketConnectionsHandler.BroadcastCells(s.Cells)
 }
 
 func (s *Server) step() {
-	buckets := CreateBuckets(s.cells, 1000)
+	buckets := CreateBuckets(s.Cells, 1000)
 	fmt.Println(len(buckets))
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
@@ -147,7 +293,7 @@ func (s *Server) step() {
 		batch := &proto.CellComputeBatch{
 			CellsToCompute:   bucket,
 			CellsInProximity: surroundingCells,
-			TimeStep:         s.timeStep,
+			TimeStep:         s.TimeStep,
 		}
 		go s.callCIS(batch, wg, returnedBatchChan)
 	}
@@ -155,8 +301,8 @@ func (s *Server) step() {
 	wg.Wait()
 	close(returnedBatchChan)
 	<-doneChan
-	s.timeStep++
-	fmt.Println(s.timeStep, ": ", len(s.cells))
+	s.TimeStep++
+	fmt.Println(s.TimeStep, ": ", len(s.Cells))
 	s.broadcastCurrentState()
 }
 
@@ -181,7 +327,7 @@ func (s *Server) processReturnedBatches(returnedBatchChan chan *proto.CellComput
 	for returnedBatch := range returnedBatchChan {
 		newCells = append(newCells, returnedBatch.CellsToCompute...)
 	}
-	s.cells = newCells
+	s.Cells = newCells
 	doneChan <- struct{}{}
 }
 

@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -19,6 +20,19 @@ type ConnectionsHandler struct {
 func NewConnectionsHandler() *ConnectionsHandler {
 	return &ConnectionsHandler{
 		connLock: &sync.Mutex{},
+	}
+}
+
+//Shutdown closes all active websocket connections
+func (h *ConnectionsHandler) Shutdown() {
+	h.closeActiveConnections()
+}
+
+func (h *ConnectionsHandler) closeActiveConnections() {
+	for _, conn := range h.conns {
+		if err := conn.Conn.Close(); err != nil {
+			log.Println("Couldn't close websocket connection", err)
+		}
 	}
 }
 
