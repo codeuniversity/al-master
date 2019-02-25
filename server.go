@@ -180,7 +180,7 @@ func nameOfLatestState(files []os.FileInfo) (latestStateName string) {
 }
 
 func stateNameValid(stateName string) bool {
-	var validStateName = regexp.MustCompile(`STATE_[0-9]`)
+	var validStateName = regexp.MustCompile(`STATE_\d+`)
 	return validStateName.MatchString(stateName)
 }
 

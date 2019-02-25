@@ -20,8 +20,12 @@ func main() {
 	}
 
 	flag.StringVar(&config.StateFileName, "state_from_file", "", "input the state name you want to load")
-	flag.BoolVar(&config.LoadLatestState, "load_latest_state", false, "specify if you want to load the "+
-		"latest state")
+	flag.BoolVar(
+		&config.LoadLatestState,
+		"load_latest_state",
+		false,
+		"specify if you want to load the latest state",
+	)
 	flag.Parse()
 
 	if config.StateFileName != "" && config.LoadLatestState {
