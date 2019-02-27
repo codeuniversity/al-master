@@ -100,6 +100,18 @@ func (s *Server) Run() {
 	s.shutdown()
 }
 
+//Register cis-slave and create clients to make the slave useful
+func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
+	for i := 0; i < int(registration.Threads); i++ {
+		client, err := createCellInteractionClient(registration.Address)
+		if err != nil {
+			return nil, err
+		}
+		s.cisClientPool.AddClient(client)
+	}
+	return &proto.SlaveRegistrationResponse{}, nil
+}
+
 func (s *Server) shutdown() {
 	s.websocketConnectionsHandler.Shutdown()
 
@@ -195,18 +207,6 @@ func buildStateFilePath(saveTime time.Time) string {
 
 func buildTemporaryStateFilePath(saveTime time.Time) string {
 	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
-}
-
-//Register cis-slave and create clients to make the slave useful
-func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
-	for i := 0; i < int(registration.Threads); i++ {
-		client, err := createCellInteractionClient(registration.Address)
-		if err != nil {
-			return nil, err
-		}
-		s.cisClientPool.AddClient(client)
-	}
-	return &proto.SlaveRegistrationResponse{}, nil
 }
 
 func (s *Server) fetchBigBang() {
