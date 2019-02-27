@@ -1,16 +1,27 @@
 package master
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
+const testStatesFolderName = "states-test"
+
+func cleanup() {
+	err := os.RemoveAll(testStatesFolderName)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestNameOfLatestState(t *testing.T) {
-	testStatesFolderName := "states-test"
+	defer cleanup()
+
 	err := os.MkdirAll(filepath.Join(testStatesFolderName), 0755)
 	_, err = os.Create(filepath.Join(testStatesFolderName, "STATE_20190222194317"))
 	_, err = os.Create(filepath.Join(testStatesFolderName, "STATE_20190222194284"))
