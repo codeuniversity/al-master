@@ -4,10 +4,6 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"github.com/codeuniversity/al-master/websocket"
-	"github.com/codeuniversity/al-proto"
-	websocketConn "github.com/gorilla/websocket"
-	"google.golang.org/grpc"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,6 +17,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/codeuniversity/al-master/websocket"
+	"github.com/codeuniversity/al-proto"
+	websocketConn "github.com/gorilla/websocket"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -50,7 +51,7 @@ type Server struct {
 	httpServer *http.Server
 }
 
-//NewServer with address to cis
+//NewServer with given config
 func NewServer(config ServerConfig) *Server {
 	clientPool := NewCISClientPool(config.ConnBufferSize)
 
@@ -61,7 +62,7 @@ func NewServer(config ServerConfig) *Server {
 	}
 }
 
-//Init starts the server
+//Init loads state from a file or by asking a cis instance for a new BigBang depending on ServerConfig
 func (s *Server) Init() {
 	go s.listen()
 
