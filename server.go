@@ -95,6 +95,11 @@ func initPrometheus() {
 	prometheus.MustRegister(metrics.MedianCellsPerBucket)
 	prometheus.MustRegister(metrics.MinCellsInBuckets)
 	prometheus.MustRegister(metrics.MaxCellsInBuckets)
+	prometheus.MustRegister(metrics.CallCISCounter)
+	prometheus.MustRegister(metrics.NumWebSocketConnections)
+	prometheus.MustRegister(metrics.NumCISThreads)
+	prometheus.MustRegister(metrics.NumCISInstances)
+	prometheus.MustRegister(metrics.CallCISDuration)
 
 	http.Handle("/metrics", promhttp.Handler())
 }
@@ -219,7 +224,9 @@ func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistra
 			return nil, err
 		}
 		s.cisClientPool.AddClient(client)
+		metrics.NumCISThreads.Inc()
 	}
+	metrics.NumCISInstances.Inc()
 	return &proto.SlaveRegistrationResponse{}, nil
 }
 
@@ -383,14 +390,18 @@ func (s *Server) step() {
 	s.TimeStep++
 	fmt.Println(s.TimeStep, ": ", len(s.Cells))
 	s.broadcastCurrentState()
+	metrics.NumCISThreads.Set(float64(len(s.cisClientPool.clientChan)))
 }
 
 func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
+	metrics.CallCISCounter.Inc()
 	looping := true
 	for looping {
 		c := s.cisClientPool.GetClient()
 		withTimeout(10*time.Second, func(ctx context.Context) {
+			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
+			metrics.CallCISDuration.Observe(float64(time.Since(start)) / 1000000)
 			s.cisClientPool.AddClient(c)
 			if err == nil {
 				returnedBatchChan <- returnedBatch
