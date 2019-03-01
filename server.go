@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"github.com/codeuniversity/al-master/metrics"
 	"github.com/codeuniversity/al-master/websocket"
 	"github.com/codeuniversity/al-proto"
 	websocketConn "github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"io"
 	"io/ioutil"
@@ -17,6 +20,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -63,6 +67,7 @@ func NewServer(config ServerConfig) *Server {
 
 //Init starts the server
 func (s *Server) Init() {
+	initPrometheus()
 	go s.listen()
 
 	if s.StateFileName != "" {
@@ -82,6 +87,16 @@ func (s *Server) Init() {
 	}
 
 	s.fetchBigBang()
+}
+
+func initPrometheus() {
+	prometheus.MustRegister(metrics.AmountOfBuckets)
+	prometheus.MustRegister(metrics.AverageCellsPerBucket)
+	prometheus.MustRegister(metrics.MedianCellsPerBucket)
+	prometheus.MustRegister(metrics.MinCellsInBuckets)
+	prometheus.MustRegister(metrics.MaxCellsInBuckets)
+
+	http.Handle("/metrics", promhttp.Handler())
 }
 
 //Run offloads the computation of changes to cis
@@ -273,9 +288,73 @@ func (s *Server) broadcastCurrentState() {
 	s.websocketConnectionsHandler.BroadcastCells(s.Cells)
 }
 
+func averageCellsPerBucket(buckets *Buckets) (average float64) {
+	if len(*buckets) == 0 {
+		return
+	}
+	var cellsInBuckets []int
+	var totalAmountOfCells int
+
+	for _, bucket := range *buckets {
+		cellsInBuckets = append(cellsInBuckets, len(bucket))
+		totalAmountOfCells += len(bucket)
+	}
+	average = float64(totalAmountOfCells) / float64(len(cellsInBuckets))
+	return
+}
+
+func medianCellsPerBucket(buckets *Buckets) (median float64) {
+	bucketsLength := len(*buckets)
+	if bucketsLength == 0 {
+		return
+	}
+	var cellsInBuckets []int
+	for _, bucket := range *buckets {
+		cellsInBuckets = append(cellsInBuckets, len(bucket))
+	}
+	sort.Ints(cellsInBuckets)
+
+	if len(*buckets)%2 != 0 {
+		median = float64(cellsInBuckets[(bucketsLength-1)/2])
+	} else {
+		median = float64((cellsInBuckets[bucketsLength/2] + cellsInBuckets[(bucketsLength/2)-1]) / 2)
+	}
+	return
+}
+
+//minMaxBucketCells returns the amount of cells of the bucket with the most and the least amount of cells
+func minMaxBucketCells(buckets *Buckets) (minCellsInBucket float64, maxCellsInBucket float64) {
+	if len(*buckets) == 0 {
+		return
+	}
+	var cellsInBucket int
+	minCellsInBucket = -1
+
+	for _, bucket := range *buckets {
+		cellsInBucket = len(bucket)
+		if float64(cellsInBucket) > maxCellsInBucket {
+			maxCellsInBucket = float64(cellsInBucket)
+		}
+		if float64(cellsInBucket) < minCellsInBucket || minCellsInBucket == -1 {
+			minCellsInBucket = float64(cellsInBucket)
+		}
+	}
+	return
+}
+
+func updateBucketsMetrics(buckets *Buckets) {
+	minBucketCells, maxBucketCells := minMaxBucketCells(buckets)
+
+	metrics.AmountOfBuckets.Set(float64(len(*buckets)))
+	metrics.MinCellsInBuckets.Set(minBucketCells)
+	metrics.MaxCellsInBuckets.Set(maxBucketCells)
+	metrics.AverageCellsPerBucket.Set(averageCellsPerBucket(buckets))
+	metrics.MedianCellsPerBucket.Set(medianCellsPerBucket(buckets))
+}
+
 func (s *Server) step() {
 	buckets := CreateBuckets(s.Cells, 1000)
-	fmt.Println(len(buckets))
+	updateBucketsMetrics(&buckets)
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
 	doneChan := make(chan struct{})
