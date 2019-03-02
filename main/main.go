@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
-	"github.com/codeuniversity/al-master"
 	"log"
+	_ "net/http/pprof"
+
+	"github.com/codeuniversity/al-master"
 )
 
 const (
