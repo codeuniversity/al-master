@@ -313,8 +313,8 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 		c := s.cisClientPool.GetClient()
 		withTimeout(10*time.Second, func(ctx context.Context) {
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			s.cisClientPool.AddClient(c)
 			if err == nil {
+				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
 				looping = false
 			}
