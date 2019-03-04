@@ -42,10 +42,10 @@ var (
 		Help:    "the amount of time it takes a CIS to respond to a call",
 		Buckets: prometheus.LinearBuckets(0, 10, 10),
 	})
-	//CISClientCount, the number of used CIS instances
-	CISClientCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "cis_client_count",
-		Help: "the number of used CIS instances",
+	//CISThreadCount, the number of used CIS threads
+	CISThreadCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cis_thread_count",
+		Help: "the number of used CIS threads",
 	})
 
 	//NumWebSocketConnections, the number of currently active CIS instances
