@@ -35,6 +35,7 @@ type ServerConfig struct {
 	HTTPPort        int
 	StateFileName   string
 	LoadLatestState bool
+	BigBangConfigPath string
 }
 
 //Server that manages cell changes
@@ -210,10 +211,14 @@ func buildTemporaryStateFilePath(saveTime time.Time) string {
 }
 
 func (s *Server) fetchBigBang() {
+	config, err := BigBangConfigFromPath(s.ServerConfig.BigBangConfigPath)
+	if err != nil {
+		panic(err)
+	}
 	c := s.cisClientPool.GetClient()
 	defer s.cisClientPool.AddClient(c)
 	withTimeout(100*time.Second, func(ctx context.Context) {
-		stream, err := c.BigBang(ctx, &proto.BigBangRequest{})
+		stream, err := c.BigBang(ctx, config.ToProto())
 		if err != nil {
 			panic(err)
 		}

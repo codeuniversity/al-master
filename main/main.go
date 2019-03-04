@@ -26,6 +26,7 @@ func main() {
 		false,
 		"specify if you want to load the latest state",
 	)
+	flag.StringVar(&config.BigBangConfigPath, "big_bang_config_path", "./big_bang_conf.yaml", "Path to the Big-Bang Config")
 	flag.Parse()
 
 	if config.StateFileName != "" && config.LoadLatestState {
