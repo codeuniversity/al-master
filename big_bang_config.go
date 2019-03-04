@@ -28,3 +28,17 @@ type Vector struct {
 	Y float32 `yaml:"y"`
 	Z float32 `yaml:"z"`
 }
+
+func BigBangConfigFromPath(path string) (*BigBangConfig, error) {
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	config := &BigBangConfig{}
+	err = yaml.Unmarshal(content, config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
