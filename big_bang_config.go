@@ -42,3 +42,33 @@ func BigBangConfigFromPath(path string) (*BigBangConfig, error) {
 	return config, nil
 }
 
+func (v *Vector) ToProto() *proto.Vector {
+	return &proto.Vector{
+		X: v.X,
+		Y: v.Y,
+		Z: v.Z,
+	}
+}
+
+func (d *SpawnDimension) ToProto() *proto.SpawnDimension {
+	return &proto.SpawnDimension{
+		Start: d.Start.ToProto(),
+		End: d.End.ToProto(),
+	}
+}
+
+func (r *DnaLengthRange) ToProto() *proto.DnaLengthRange {
+	return &proto.DnaLengthRange{
+		Min: r.Min,
+		Max: r.Max,
+	}
+}
+
+func (c *BigBangConfig) ToProto() *proto.BigBangRequest{
+	return &proto.BigBangRequest{
+		SpawnDimension: c.SpawnDimension.ToProto(),
+		EnergyLevel: c.EnergyLevel,
+		CellAmount: c.CellAmount,
+		DnaLengthRange: c.DnaLengthRange.ToProto(),
+	}
+}
