@@ -4,13 +4,6 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"github.com/codeuniversity/al-master/metrics"
-	"github.com/codeuniversity/al-master/websocket"
-	"github.com/codeuniversity/al-proto"
-	websocketConn "github.com/gorilla/websocket"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc"
 	"io"
 	"io/ioutil"
 	"log"
@@ -25,6 +18,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/codeuniversity/al-master/metrics"
+	"github.com/codeuniversity/al-master/websocket"
+	"github.com/codeuniversity/al-proto"
+	websocketConn "github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -54,7 +55,7 @@ type Server struct {
 	httpServer *http.Server
 }
 
-//NewServer with address to cis
+//NewServer with given config
 func NewServer(config ServerConfig) *Server {
 	clientPool := NewCISClientPool(config.ConnBufferSize)
 
@@ -65,7 +66,7 @@ func NewServer(config ServerConfig) *Server {
 	}
 }
 
-//Init starts the server
+//Init loads state from a file or by asking a cis instance for a new BigBang depending on ServerConfig
 func (s *Server) Init() {
 	s.initPrometheus()
 	go s.listen()
@@ -97,7 +98,7 @@ func (s *Server) initPrometheus() {
 	prometheus.MustRegister(metrics.MaxCellsInBuckets)
 	prometheus.MustRegister(metrics.CallCISCounter)
 	prometheus.MustRegister(metrics.CallCISDuration)
-	prometheus.MustRegister(metrics.CISClientCount)
+	prometheus.MustRegister(metrics.CISThreadCount)
 	prometheus.MustRegister(metrics.NumWebSocketConnections)
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -223,8 +224,8 @@ func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistra
 			return nil, err
 		}
 		s.cisClientPool.AddClient(client)
+		metrics.CISThreadCount.Inc()
 	}
-	metrics.CISClientCount.Inc()
 	return &proto.SlaveRegistrationResponse{}, nil
 }
 
@@ -399,12 +400,12 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
 			metrics.CallCISDuration.Observe(float64(time.Since(start)) / 1000000)
-			s.cisClientPool.AddClient(c)
 			if err == nil {
+				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
 				looping = false
 			} else {
-				metrics.CISClientCount.Dec()
+				metrics.CISThreadCount.Dec()
 			}
 		})
 	}
