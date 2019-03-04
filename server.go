@@ -67,7 +67,7 @@ func NewServer(config ServerConfig) *Server {
 
 //Init starts the server
 func (s *Server) Init() {
-	initPrometheus()
+	s.initPrometheus()
 	go s.listen()
 
 	if s.StateFileName != "" {
@@ -89,17 +89,16 @@ func (s *Server) Init() {
 	s.fetchBigBang()
 }
 
-func initPrometheus() {
+func (s *Server) initPrometheus() {
 	prometheus.MustRegister(metrics.AmountOfBuckets)
 	prometheus.MustRegister(metrics.AverageCellsPerBucket)
 	prometheus.MustRegister(metrics.MedianCellsPerBucket)
 	prometheus.MustRegister(metrics.MinCellsInBuckets)
 	prometheus.MustRegister(metrics.MaxCellsInBuckets)
 	prometheus.MustRegister(metrics.CallCISCounter)
-	prometheus.MustRegister(metrics.NumWebSocketConnections)
-	prometheus.MustRegister(metrics.NumCISThreads)
-	prometheus.MustRegister(metrics.NumCISInstances)
 	prometheus.MustRegister(metrics.CallCISDuration)
+	prometheus.MustRegister(metrics.CISClientCount)
+	prometheus.MustRegister(metrics.NumWebSocketConnections)
 
 	http.Handle("/metrics", promhttp.Handler())
 }
@@ -224,9 +223,8 @@ func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistra
 			return nil, err
 		}
 		s.cisClientPool.AddClient(client)
-		metrics.NumCISThreads.Inc()
 	}
-	metrics.NumCISInstances.Inc()
+	metrics.CISClientCount.Inc()
 	return &proto.SlaveRegistrationResponse{}, nil
 }
 
@@ -390,7 +388,6 @@ func (s *Server) step() {
 	s.TimeStep++
 	fmt.Println(s.TimeStep, ": ", len(s.Cells))
 	s.broadcastCurrentState()
-	metrics.NumCISThreads.Set(float64(len(s.cisClientPool.clientChan)))
 }
 
 func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
@@ -406,6 +403,8 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 			if err == nil {
 				returnedBatchChan <- returnedBatch
 				looping = false
+			} else {
+				metrics.CISClientCount.Dec()
 			}
 		})
 	}

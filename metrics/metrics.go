@@ -1,6 +1,8 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	//AmountOfBuckets, the amount of buckets cells are currently distributed in
@@ -40,14 +42,9 @@ var (
 		Help:    "the amount of time it takes a CIS to respond to a call",
 		Buckets: prometheus.LinearBuckets(0, 10, 10),
 	})
-	//NumCISThreads, the number of used CIS threads
-	NumCISThreads = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "num_cis_threads",
-		Help: "the number of used CIS threads",
-	})
-	//NumCISInstances, the number of used CIS instances
-	NumCISInstances = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "num_cis_instances",
+	//CISClientCount, the number of used CIS instances
+	CISClientCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cis_client_count",
 		Help: "the number of used CIS instances",
 	})
 
