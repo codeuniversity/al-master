@@ -7,40 +7,40 @@ import (
 var (
 	//AmountOfBuckets, the amount of buckets cells are currently distributed in
 	AmountOfBuckets = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "amount_of_buckets",
+		Name: "buckets_count",
 		Help: "the amount of buckets cells are currently distributed in",
 	})
 	// AverageCellsPerBucket, the average number of cells throughout all buckets
 	AverageCellsPerBucket = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "average_cells_per_bucket",
+		Name: "buckets_average_cell_count",
 		Help: "the average number of cells throughout all buckets",
 	})
 	//MedianCellsPerBucket, the median number of cells throughout all buckets
 	MedianCellsPerBucket = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "median_cells_per_bucket",
+		Name: "buckets_median_cell_count",
 		Help: "the median number of cells throughout all buckets",
 	})
 	//MinCellsInBuckets, the amount of cells the bucket with the least cells contains
 	MinCellsInBuckets = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "min_amount_of_cells",
+		Name: "buckets_min_cell_count",
 		Help: "the amount of cells the bucket with the least cells contains",
 	})
 	//MaxCellsInBuckets, the amount of cells the bucket with the most cells contains
 	MaxCellsInBuckets = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "max_amount_of_cells",
+		Name: "bucket_max_cell_count",
 		Help: "the amount of cells the bucket with the most cells contains",
 	})
 
-	//CallCISCounter, the number of times a CIS instance got called
-	CallCISCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "number_of_cis_calls",
+	//CISCallCounter, the number of times a CIS instance got called
+	CISCallCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "cis_call_count",
 		Help: "the number of times a CIS instance got called",
 	})
-	//CisCallDurationMilliseconds, the amount of time it takes a CIS to respond to a call in milliseconds
-	CisCallDurationMilliseconds = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "cis_call_duration_milliseconds",
-		Help:    "the amount of time it takes a CIS to respond to a call in milliseconds",
-		Buckets: prometheus.LinearBuckets(0, 10, 10),
+	//CisCallDurationSeconds, the amount of time it takes a CIS to respond to a call in seconds
+	CisCallDurationSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "cis_call_duration_seconds",
+		Help:    "the amount of time it takes a CIS to respond to a call in seconds",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 5},
 	})
 	//CISClientCount, the number of used CIS clients
 	CISClientCount = prometheus.NewGauge(prometheus.GaugeOpts{

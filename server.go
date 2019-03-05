@@ -107,7 +107,6 @@ func (s *Server) Run() {
 //Register cis-slave and create clients to make the slave useful
 func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
 	for i := 0; i < int(registration.Threads); i++ {
-		fmt.Println(registration.Threads)
 		client, err := createCellInteractionClient(registration.Address)
 		if err != nil {
 			return nil, err
@@ -124,8 +123,8 @@ func (s *Server) initPrometheus() {
 	prometheus.MustRegister(metrics.MedianCellsPerBucket)
 	prometheus.MustRegister(metrics.MinCellsInBuckets)
 	prometheus.MustRegister(metrics.MaxCellsInBuckets)
-	prometheus.MustRegister(metrics.CallCISCounter)
-	prometheus.MustRegister(metrics.CisCallDurationMilliseconds)
+	prometheus.MustRegister(metrics.CISCallCounter)
+	prometheus.MustRegister(metrics.CisCallDurationSeconds)
 	prometheus.MustRegister(metrics.CISClientCount)
 	prometheus.MustRegister(metrics.WebSocketConnectionsCount)
 
@@ -328,14 +327,14 @@ func (s *Server) step() {
 }
 
 func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
-	metrics.CallCISCounter.Inc()
+	metrics.CISCallCounter.Inc()
 	looping := true
 	for looping {
 		c := s.cisClientPool.GetClient()
 		withTimeout(10*time.Second, func(ctx context.Context) {
 			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			metrics.CisCallDurationMilliseconds.Observe(float64(time.Since(start)) / 1000000)
+			metrics.CisCallDurationSeconds.Observe(float64(time.Since(start)) / 1000000000)
 			if err == nil {
 				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
