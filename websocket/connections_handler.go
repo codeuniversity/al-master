@@ -43,14 +43,14 @@ func (h *ConnectionsHandler) AddConnection(conn *websocket.Conn) {
 	connectionWrapper.OnListenError(func(listenErr error) {
 		fmt.Println("removing connection because: ", listenErr)
 		h.removeConnection(connectionWrapper)
-		metrics.NumWebSocketConnections.Dec()
+		metrics.WebSocketConnectionsCount.Dec()
 	})
 
 	h.connLock.Lock()
 	defer h.connLock.Unlock()
 
 	h.conns = append(h.conns, connectionWrapper)
-	metrics.NumWebSocketConnections.Inc()
+	metrics.WebSocketConnectionsCount.Inc()
 }
 
 //BroadcastCells to all connected clients

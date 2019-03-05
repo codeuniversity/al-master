@@ -36,21 +36,21 @@ var (
 		Name: "number_of_cis_calls",
 		Help: "the number of times a CIS instance got called",
 	})
-	//CallCISDuration, the amount of time it takes a CIS to respond to a call in milliseconds
-	CallCISDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "call_cis_duration",
-		Help:    "the amount of time it takes a CIS to respond to a call",
+	//CisCallDurationMilliseconds, the amount of time it takes a CIS to respond to a call in milliseconds
+	CisCallDurationMilliseconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "cis_call_duration_milliseconds",
+		Help:    "the amount of time it takes a CIS to respond to a call in milliseconds",
 		Buckets: prometheus.LinearBuckets(0, 10, 10),
 	})
-	//CISThreadCount, the number of used CIS threads
-	CISThreadCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "cis_thread_count",
-		Help: "the number of used CIS threads",
+	//CISClientCount, the number of used CIS clients
+	CISClientCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cis_client_count",
+		Help: "the number of used CIS clients",
 	})
 
-	//NumWebSocketConnections, the number of currently active CIS instances
-	NumWebSocketConnections = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "num_websocket_connections",
+	//WebSocketConnectionsCount, the number of currently active websocket connections
+	WebSocketConnectionsCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "websocket_connections_count",
 		Help: "the number of currently active websocket connections",
 	})
 )

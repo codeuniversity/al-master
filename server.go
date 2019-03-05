@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -23,8 +24,6 @@ import (
 	"github.com/codeuniversity/al-master/websocket"
 	"github.com/codeuniversity/al-proto"
 	websocketConn "github.com/gorilla/websocket"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 )
 
@@ -90,20 +89,6 @@ func (s *Server) Init() {
 	s.fetchBigBang()
 }
 
-func (s *Server) initPrometheus() {
-	prometheus.MustRegister(metrics.AmountOfBuckets)
-	prometheus.MustRegister(metrics.AverageCellsPerBucket)
-	prometheus.MustRegister(metrics.MedianCellsPerBucket)
-	prometheus.MustRegister(metrics.MinCellsInBuckets)
-	prometheus.MustRegister(metrics.MaxCellsInBuckets)
-	prometheus.MustRegister(metrics.CallCISCounter)
-	prometheus.MustRegister(metrics.CallCISDuration)
-	prometheus.MustRegister(metrics.CISThreadCount)
-	prometheus.MustRegister(metrics.NumWebSocketConnections)
-
-	http.Handle("/metrics", promhttp.Handler())
-}
-
 //Run offloads the computation of changes to cis
 func (s *Server) Run() {
 	signals := make(chan os.Signal, 1)
@@ -117,6 +102,34 @@ func (s *Server) Run() {
 		s.step()
 	}
 	s.shutdown()
+}
+
+//Register cis-slave and create clients to make the slave useful
+func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
+	for i := 0; i < int(registration.Threads); i++ {
+		fmt.Println(registration.Threads)
+		client, err := createCellInteractionClient(registration.Address)
+		if err != nil {
+			return nil, err
+		}
+		s.cisClientPool.AddClient(client)
+		metrics.CISClientCount.Inc()
+	}
+	return &proto.SlaveRegistrationResponse{}, nil
+}
+
+func (s *Server) initPrometheus() {
+	prometheus.MustRegister(metrics.AmountOfBuckets)
+	prometheus.MustRegister(metrics.AverageCellsPerBucket)
+	prometheus.MustRegister(metrics.MedianCellsPerBucket)
+	prometheus.MustRegister(metrics.MinCellsInBuckets)
+	prometheus.MustRegister(metrics.MaxCellsInBuckets)
+	prometheus.MustRegister(metrics.CallCISCounter)
+	prometheus.MustRegister(metrics.CisCallDurationMilliseconds)
+	prometheus.MustRegister(metrics.CISClientCount)
+	prometheus.MustRegister(metrics.WebSocketConnectionsCount)
+
+	http.Handle("/metrics", promhttp.Handler())
 }
 
 func (s *Server) shutdown() {
@@ -216,19 +229,6 @@ func buildTemporaryStateFilePath(saveTime time.Time) string {
 	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
 }
 
-//Register cis-slave and create clients to make the slave useful
-func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistration) (*proto.SlaveRegistrationResponse, error) {
-	for i := 0; i < int(registration.Threads); i++ {
-		client, err := createCellInteractionClient(registration.Address)
-		if err != nil {
-			return nil, err
-		}
-		s.cisClientPool.AddClient(client)
-		metrics.CISThreadCount.Inc()
-	}
-	return &proto.SlaveRegistrationResponse{}, nil
-}
-
 func (s *Server) fetchBigBang() {
 	c := s.cisClientPool.GetClient()
 	defer s.cisClientPool.AddClient(c)
@@ -294,73 +294,9 @@ func (s *Server) broadcastCurrentState() {
 	s.websocketConnectionsHandler.BroadcastCells(s.Cells)
 }
 
-func averageCellsPerBucket(buckets *Buckets) (average float64) {
-	if len(*buckets) == 0 {
-		return
-	}
-	var cellsInBuckets []int
-	var totalAmountOfCells int
-
-	for _, bucket := range *buckets {
-		cellsInBuckets = append(cellsInBuckets, len(bucket))
-		totalAmountOfCells += len(bucket)
-	}
-	average = float64(totalAmountOfCells) / float64(len(cellsInBuckets))
-	return
-}
-
-func medianCellsPerBucket(buckets *Buckets) (median float64) {
-	bucketsLength := len(*buckets)
-	if bucketsLength == 0 {
-		return
-	}
-	var cellsInBuckets []int
-	for _, bucket := range *buckets {
-		cellsInBuckets = append(cellsInBuckets, len(bucket))
-	}
-	sort.Ints(cellsInBuckets)
-
-	if len(*buckets)%2 != 0 {
-		median = float64(cellsInBuckets[(bucketsLength-1)/2])
-	} else {
-		median = float64((cellsInBuckets[bucketsLength/2] + cellsInBuckets[(bucketsLength/2)-1]) / 2)
-	}
-	return
-}
-
-//minMaxBucketCells returns the amount of cells of the bucket with the most and the least amount of cells
-func minMaxBucketCells(buckets *Buckets) (minCellsInBucket float64, maxCellsInBucket float64) {
-	if len(*buckets) == 0 {
-		return
-	}
-	var cellsInBucket int
-	minCellsInBucket = -1
-
-	for _, bucket := range *buckets {
-		cellsInBucket = len(bucket)
-		if float64(cellsInBucket) > maxCellsInBucket {
-			maxCellsInBucket = float64(cellsInBucket)
-		}
-		if float64(cellsInBucket) < minCellsInBucket || minCellsInBucket == -1 {
-			minCellsInBucket = float64(cellsInBucket)
-		}
-	}
-	return
-}
-
-func updateBucketsMetrics(buckets *Buckets) {
-	minBucketCells, maxBucketCells := minMaxBucketCells(buckets)
-
-	metrics.AmountOfBuckets.Set(float64(len(*buckets)))
-	metrics.MinCellsInBuckets.Set(minBucketCells)
-	metrics.MaxCellsInBuckets.Set(maxBucketCells)
-	metrics.AverageCellsPerBucket.Set(averageCellsPerBucket(buckets))
-	metrics.MedianCellsPerBucket.Set(medianCellsPerBucket(buckets))
-}
-
 func (s *Server) step() {
 	buckets := CreateBuckets(s.Cells, 1000)
-	updateBucketsMetrics(&buckets)
+	UpdateBucketsMetrics(&buckets)
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
 	doneChan := make(chan struct{})
@@ -399,13 +335,13 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 		withTimeout(10*time.Second, func(ctx context.Context) {
 			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			metrics.CallCISDuration.Observe(float64(time.Since(start)) / 1000000)
+			metrics.CisCallDurationMilliseconds.Observe(float64(time.Since(start)) / 1000000)
 			if err == nil {
 				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
 				looping = false
 			} else {
-				metrics.CISThreadCount.Dec()
+				metrics.CISClientCount.Dec()
 			}
 		})
 	}
