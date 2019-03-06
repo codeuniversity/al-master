@@ -1,21 +1,22 @@
 package master
+
 import (
 	"io/ioutil"
-	"gopkg.in/yaml.v2"
+
 	"github.com/codeuniversity/al-proto"
+	"gopkg.in/yaml.v2"
 )
 
-
 type BigBangConfig struct {
-	SpawnDimension	`yaml:"spawn_dimension"`
-	EnergyLevel uint64 `yaml:"energy_level"`
-	CellAmount uint64	`yaml:"cell_amount"`
-	DnaLengthRange	`yaml:"dna_length_range"`
+	SpawnDimension `yaml:"spawn_dimension"`
+	EnergyLevel    uint64 `yaml:"energy_level"`
+	CellAmount     uint64 `yaml:"cell_amount"`
+	DnaLengthRange `yaml:"dna_length_range"`
 }
 
 type SpawnDimension struct {
 	Start Vector `yaml:"start"`
-	End Vector `yaml:"end"`
+	End   Vector `yaml:"end"`
 }
 
 type DnaLengthRange struct {
@@ -53,7 +54,7 @@ func (v *Vector) ToProto() *proto.Vector {
 func (d *SpawnDimension) ToProto() *proto.SpawnDimension {
 	return &proto.SpawnDimension{
 		Start: d.Start.ToProto(),
-		End: d.End.ToProto(),
+		End:   d.End.ToProto(),
 	}
 }
 
@@ -64,11 +65,11 @@ func (r *DnaLengthRange) ToProto() *proto.DnaLengthRange {
 	}
 }
 
-func (c *BigBangConfig) ToProto() *proto.BigBangRequest{
+func (c *BigBangConfig) ToProto() *proto.BigBangRequest {
 	return &proto.BigBangRequest{
 		SpawnDimension: c.SpawnDimension.ToProto(),
-		EnergyLevel: c.EnergyLevel,
-		CellAmount: c.CellAmount,
+		EnergyLevel:    c.EnergyLevel,
+		CellAmount:     c.CellAmount,
 		DnaLengthRange: c.DnaLengthRange.ToProto(),
 	}
 }
