@@ -334,7 +334,7 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 		withTimeout(10*time.Second, func(ctx context.Context) {
 			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			metrics.CisCallDurationSeconds.Observe(float64(time.Since(start)) / 1000000000)
+			metrics.CisCallDurationSeconds.Observe(float64(time.Since(start).Seconds()))
 			if err == nil {
 				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
