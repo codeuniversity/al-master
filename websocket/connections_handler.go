@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"fmt"
+	"github.com/codeuniversity/al-master/metrics"
 	"log"
 	"sync"
 
@@ -42,12 +43,14 @@ func (h *ConnectionsHandler) AddConnection(conn *websocket.Conn) {
 	connectionWrapper.OnListenError(func(listenErr error) {
 		fmt.Println("removing connection because: ", listenErr)
 		h.removeConnection(connectionWrapper)
+		metrics.WebSocketConnectionsCount.Dec()
 	})
 
 	h.connLock.Lock()
 	defer h.connLock.Unlock()
 
 	h.conns = append(h.conns, connectionWrapper)
+	metrics.WebSocketConnectionsCount.Inc()
 }
 
 //BroadcastCells to all connected clients

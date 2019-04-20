@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io"
 	"io/ioutil"
 	"log"
@@ -18,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/codeuniversity/al-master/metrics"
 	"github.com/codeuniversity/al-master/websocket"
 	"github.com/codeuniversity/al-proto"
 	websocketConn "github.com/gorilla/websocket"
@@ -65,6 +68,7 @@ func NewServer(config ServerConfig) *Server {
 
 //Init loads state from a file or by asking a cis instance for a new BigBang depending on ServerConfig
 func (s *Server) Init() {
+	s.initPrometheus()
 	go s.listen()
 
 	if s.StateFileName != "" {
@@ -109,8 +113,23 @@ func (s *Server) Register(ctx context.Context, registration *proto.SlaveRegistra
 			return nil, err
 		}
 		s.cisClientPool.AddClient(client)
+		metrics.CISClientCount.Inc()
 	}
 	return &proto.SlaveRegistrationResponse{}, nil
+}
+
+func (s *Server) initPrometheus() {
+	prometheus.MustRegister(metrics.AmountOfBuckets)
+	prometheus.MustRegister(metrics.AverageCellsPerBucket)
+	prometheus.MustRegister(metrics.MedianCellsPerBucket)
+	prometheus.MustRegister(metrics.MinCellsInBuckets)
+	prometheus.MustRegister(metrics.MaxCellsInBuckets)
+	prometheus.MustRegister(metrics.CISCallCounter)
+	prometheus.MustRegister(metrics.CisCallDurationSeconds)
+	prometheus.MustRegister(metrics.CISClientCount)
+	prometheus.MustRegister(metrics.WebSocketConnectionsCount)
+
+	http.Handle("/metrics", promhttp.Handler())
 }
 
 func (s *Server) shutdown() {
@@ -281,7 +300,7 @@ func (s *Server) broadcastCurrentState() {
 
 func (s *Server) step() {
 	buckets := CreateBuckets(s.Cells, 1000)
-	fmt.Println(len(buckets))
+	UpdateBucketsMetrics(&buckets)
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
 	doneChan := make(chan struct{})
@@ -313,15 +332,20 @@ func (s *Server) step() {
 }
 
 func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, returnedBatchChan chan *proto.CellComputeBatch) {
+	metrics.CISCallCounter.Inc()
 	looping := true
 	for looping {
 		c := s.cisClientPool.GetClient()
 		withTimeout(10*time.Second, func(ctx context.Context) {
+			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
+			metrics.CisCallDurationSeconds.Observe(float64(time.Since(start).Seconds()))
 			if err == nil {
 				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
 				looping = false
+			} else {
+				metrics.CISClientCount.Dec()
 			}
 		})
 	}
