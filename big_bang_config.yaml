@@ -1,0 +1,17 @@
+spawn_dimension:
+  start:
+    x: 0
+    y: 0
+    z: 0
+  end:
+    x: 2000
+    y: 2000
+    z: 2000
+
+energy_level: 20
+
+cell_amount: 2000
+
+dna_length_range:
+  min: 3
+  max: 6
