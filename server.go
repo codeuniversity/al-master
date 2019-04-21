@@ -36,6 +36,7 @@ type ServerConfig struct {
 	StateFileName     string
 	LoadLatestState   bool
 	BigBangConfigPath string
+	BucketWidth       int
 }
 
 //Server that manages cell changes
@@ -92,7 +93,7 @@ func (s *Server) Run() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	for {
-		if len(s.Cells) == 0 {
+		if len(s.CellBuckets.AllCells()) == 0 {
 			fmt.Println("no cells remaining, stopping...")
 			s.closeConnections()
 			return
@@ -181,10 +182,10 @@ func (s *Server) fetchBigBang() {
 			}
 			cells = append(cells, cell)
 		}
-
+		buckets := CreateBuckets(cells, uint(s.BucketWidth))
 		s.SimulationState = SimulationState{
-			Cells:    cells,
-			TimeStep: 0,
+			CellBuckets: buckets,
+			TimeStep:    0,
 		}
 	})
 }
@@ -229,22 +230,21 @@ func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) broadcastCurrentState() {
-	s.websocketConnectionsHandler.BroadcastCells(s.Cells)
+	s.websocketConnectionsHandler.BroadcastCells(s.CellBuckets.AllCells())
 }
 
 func (s *Server) step() {
-	buckets := CreateBuckets(s.Cells, 1000)
-	UpdateBucketsMetrics(&buckets)
+	UpdateBucketsMetrics(s.CellBuckets)
 	wg := &sync.WaitGroup{}
 	returnedBatchChan := make(chan *proto.CellComputeBatch)
 	doneChan := make(chan struct{})
 
 	go s.processReturnedBatches(returnedBatchChan, doneChan)
 
-	for key, bucket := range buckets {
+	for key, bucket := range s.CellBuckets {
 		surroundingCells := []*proto.Cell{}
 		for _, otherKey := range key.SurroundingKeys() {
-			if otherBucket, ok := buckets[otherKey]; ok {
+			if otherBucket, ok := s.CellBuckets[otherKey]; ok {
 				surroundingCells = append(surroundingCells, otherBucket...)
 			}
 		}
@@ -261,7 +261,7 @@ func (s *Server) step() {
 	close(returnedBatchChan)
 	<-doneChan
 	s.TimeStep++
-	fmt.Println(s.TimeStep, ": ", len(s.Cells))
+	fmt.Println(s.TimeStep, ": ", len(s.CellBuckets.AllCells()))
 	s.broadcastCurrentState()
 }
 
@@ -287,11 +287,12 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 }
 
 func (s *Server) processReturnedBatches(returnedBatchChan chan *proto.CellComputeBatch, doneChan chan struct{}) {
-	newCells := []*proto.Cell{}
+	newBuckets := Buckets{}
 	for returnedBatch := range returnedBatchChan {
-		newCells = append(newCells, returnedBatch.CellsToCompute...)
+		returnedBuckets := CreateBuckets(returnedBatch.CellsToCompute, uint(s.BucketWidth))
+		newBuckets.Merge(returnedBuckets)
 	}
-	s.Cells = newCells
+	s.CellBuckets = newBuckets
 	doneChan <- struct{}{}
 }
 

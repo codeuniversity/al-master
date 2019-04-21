@@ -36,6 +36,22 @@ func CreateBuckets(cells []*proto.Cell, batchSize uint) Buckets {
 	return dict
 }
 
+//Merge otherBuckets into the Buckets Merge is called on
+func (b Buckets) Merge(otherBuckets Buckets) {
+	for key, cells := range otherBuckets {
+		b[key] = append(b[key], cells...)
+	}
+}
+
+//AllCells stored in the different Buckets
+func (b Buckets) AllCells() []*proto.Cell {
+	allCells := []*proto.Cell{}
+	for _, cells := range b {
+		allCells = append(allCells, cells...)
+	}
+	return allCells
+}
+
 func bucketKeyFor(pos *proto.Vector, batchSize uint) BucketKey {
 	batchXPosition := axisBatchPositionFor(pos.X, batchSize)
 	batchYPosition := axisBatchPositionFor(pos.Y, batchSize)

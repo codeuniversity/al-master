@@ -8,14 +8,12 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	proto "github.com/codeuniversity/al-proto"
 )
 
 //SimulationState ...
 type SimulationState struct {
-	Cells    []*proto.Cell
-	TimeStep uint64
+	CellBuckets Buckets
+	TimeStep    uint64
 }
 
 func (s *SimulationState) saveState() error {

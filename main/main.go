@@ -29,6 +29,8 @@ func main() {
 		"specify if you want to load the latest state",
 	)
 	flag.StringVar(&config.BigBangConfigPath, "big_bang_config_path", "./big_bang_config.yaml", "Path to the Big-Bang Config")
+	flag.IntVar(&config.BucketWidth, "bucket_width", 1000, "defines the edge length of a bucket")
+
 	flag.Parse()
 
 	if config.StateFileName != "" && config.LoadLatestState {
