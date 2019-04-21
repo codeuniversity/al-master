@@ -60,7 +60,8 @@ func bucketKeyFor(pos *proto.Vector, batchSize uint) BucketKey {
 }
 
 //SurroundingKeys of the key, including diagonals
-func (k BucketKey) SurroundingKeys() []BucketKey {
+func (k BucketKey) SurroundingKeys(width int) []BucketKey {
+	width64 := int64(width)
 	components := strings.Split(string(k), "/")
 	if len(components) != 3 {
 		return nil
@@ -78,9 +79,9 @@ func (k BucketKey) SurroundingKeys() []BucketKey {
 		return nil
 	}
 	keys := []BucketKey{}
-	for otherX := x - 1; otherX <= x+1; otherX++ {
-		for otherY := y - 1; otherY <= y+1; otherY++ {
-			for otherZ := z - 1; otherZ <= z+1; otherZ++ {
+	for otherX := x - width64; otherX <= x+width64; otherX += width64 {
+		for otherY := y - width64; otherY <= y+width64; otherY += width64 {
+			for otherZ := z - width64; otherZ <= z+width64; otherZ += width64 {
 				if otherX == x && otherY == y && otherZ == z {
 					continue
 				}
