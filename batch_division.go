@@ -12,6 +12,11 @@ import (
 //BucketKey is of the form "<x>/<y>/<z>"-index of a cell pos
 type BucketKey string
 
+//NewBucketKey generates a BucketKey in the form of "<x>/<y>/<z>"
+func NewBucketKey(x, y, z int) BucketKey {
+	return BucketKey(fmt.Sprintf("%d/%d/%d", x, y, z))
+}
+
 //Buckets is a map from "x/y/z"-bucket-index of the cells
 type Buckets map[BucketKey][]*proto.Cell
 
@@ -35,7 +40,7 @@ func bucketKeyFor(pos *proto.Vector, batchSize uint) BucketKey {
 	batchXPosition := axisBatchPositionFor(pos.X, batchSize)
 	batchYPosition := axisBatchPositionFor(pos.Y, batchSize)
 	batchZPosition := axisBatchPositionFor(pos.Z, batchSize)
-	return BucketKey(fmt.Sprintf("%d/%d/%d", batchXPosition, batchYPosition, batchZPosition))
+	return NewBucketKey(batchXPosition, batchYPosition, batchZPosition)
 }
 
 //SurroundingKeys of the key, including diagonals
@@ -63,7 +68,7 @@ func (k BucketKey) SurroundingKeys() []BucketKey {
 				if otherX == x && otherY == y && otherZ == z {
 					continue
 				}
-				keys = append(keys, BucketKey(fmt.Sprintf("%v/%v/%v", otherX, otherY, otherZ)))
+				keys = append(keys, NewBucketKey(int(otherX), int(otherY), int(otherZ)))
 			}
 		}
 	}
