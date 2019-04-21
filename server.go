@@ -2,23 +2,20 @@ package master
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/codeuniversity/al-master/metrics"
 	"github.com/codeuniversity/al-master/websocket"
@@ -33,11 +30,11 @@ const (
 
 //ServerConfig contains config data for Server
 type ServerConfig struct {
-	ConnBufferSize  int
-	GRPCPort        int
-	HTTPPort        int
-	StateFileName   string
-	LoadLatestState bool
+	ConnBufferSize    int
+	GRPCPort          int
+	HTTPPort          int
+	StateFileName     string
+	LoadLatestState   bool
 	BigBangConfigPath string
 }
 
@@ -45,8 +42,7 @@ type ServerConfig struct {
 type Server struct {
 	ServerConfig
 
-	Cells    []*proto.Cell
-	TimeStep uint64
+	SimulationState
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
@@ -133,6 +129,17 @@ func (s *Server) initPrometheus() {
 }
 
 func (s *Server) shutdown() {
+	s.closeConnections()
+
+	err := s.saveState()
+	if err == nil {
+		fmt.Println("\nState successfully saved")
+	} else {
+		fmt.Println("\nState could not be saved:", err)
+	}
+}
+
+func (s *Server) closeConnections() {
 	s.websocketConnectionsHandler.Shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -143,90 +150,6 @@ func (s *Server) shutdown() {
 		fmt.Println("Couldn't shutdown http server", err)
 	}
 	s.grpcServer.Stop()
-
-	err = s.saveState()
-	if err == nil {
-		fmt.Println("\nState successfully saved")
-	} else {
-		fmt.Println("\nState could not be saved:", err)
-	}
-}
-
-func (s *Server) saveState() error {
-	saveTime := time.Now()
-	err := os.MkdirAll(statesFolderName, 0755)
-	if err != nil {
-		return err
-	}
-	temporaryPath := buildTemporaryStateFilePath(saveTime)
-	file, err := os.Create(temporaryPath)
-	if err != nil {
-		return err
-	}
-	encoder := gob.NewEncoder(file)
-	err = encoder.Encode(s)
-	if err != nil {
-		return err
-	}
-	err = file.Close()
-	if err != nil {
-		return err
-	}
-	return os.Rename(temporaryPath, buildStateFilePath(saveTime))
-}
-
-func (s *Server) loadState(statePath string) error {
-	file, err := os.Open(statePath)
-	if err != nil {
-		return err
-	}
-	decoder := gob.NewDecoder(file)
-	err = decoder.Decode(&s)
-	if err != nil {
-		return err
-	}
-	return file.Close()
-}
-
-func (s *Server) loadLatestState() error {
-	files, err := ioutil.ReadDir(filepath.Join(statesFolderName))
-	if err != nil {
-		return err
-	}
-	latestStateName := nameOfLatestState(files)
-	return s.loadState(filepath.Join(statesFolderName, latestStateName))
-}
-
-func nameOfLatestState(files []os.FileInfo) (latestStateName string) {
-	var latestStateInt int64
-
-	for _, f := range files {
-		stateName := f.Name()
-		stateInt, _ := stateNameToInt(stateName)
-
-		if stateNameValid(stateName) && stateInt > latestStateInt {
-			latestStateName = stateName
-			latestStateInt = stateInt
-		}
-	}
-	return
-}
-
-func stateNameValid(stateName string) bool {
-	var validStateName = regexp.MustCompile(`STATE_\d+`)
-	return validStateName.MatchString(stateName)
-}
-
-func stateNameToInt(stateName string) (int64, error) {
-	return strconv.ParseInt(stateName[6:], 10, 64)
-}
-
-func buildStateFilePath(saveTime time.Time) string {
-	return filepath.Join(statesFolderName, "STATE_"+string(saveTime.Format("20060102150405")))
-}
-
-func buildTemporaryStateFilePath(saveTime time.Time) string {
-	return filepath.Join(statesFolderName, "SAVING_"+string(saveTime.Format("20060102150405")))
 }
 
 func (s *Server) fetchBigBang() {
@@ -241,7 +164,7 @@ func (s *Server) fetchBigBang() {
 		if err != nil {
 			panic(err)
 		}
-
+		cells := make([]*proto.Cell, 0, config.CellAmount)
 		for {
 			cell, err := stream.Recv()
 			if err != nil {
@@ -250,7 +173,12 @@ func (s *Server) fetchBigBang() {
 				}
 				break
 			}
-			s.Cells = append(s.Cells, cell)
+			cells = append(cells, cell)
+		}
+
+		s.SimulationState = SimulationState{
+			Cells:    cells,
+			TimeStep: 0,
 		}
 	})
 }
@@ -339,7 +267,7 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 		withTimeout(10*time.Second, func(ctx context.Context) {
 			start := time.Now()
 			returnedBatch, err := c.ComputeCellInteractions(ctx, batch)
-			metrics.CisCallDurationSeconds.Observe(float64(time.Since(start).Seconds()))
+			metrics.CisCallDurationSeconds.Observe(time.Since(start).Seconds())
 			if err == nil {
 				s.cisClientPool.AddClient(c)
 				returnedBatchChan <- returnedBatch
