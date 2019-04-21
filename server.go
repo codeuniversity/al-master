@@ -92,6 +92,12 @@ func (s *Server) Run() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	for {
+		if len(s.Cells) == 0 {
+			fmt.Println("no cells remaining, stopping...")
+			s.closeConnections()
+			return
+		}
+
 		if len(signals) != 0 {
 			fmt.Println("Received Signal:", <-signals)
 			break
