@@ -43,7 +43,7 @@ type ServerConfig struct {
 type Server struct {
 	ServerConfig
 
-	SimulationState
+	*SimulationState
 
 	cisClientPool               *CISClientPool
 	websocketConnectionsHandler *websocket.ConnectionsHandler
@@ -69,18 +69,22 @@ func (s *Server) Init() {
 	go s.listen()
 
 	if s.StateFileName != "" {
-		if err := s.loadState(filepath.Join(statesFolderName, s.StateFileName)); err != nil {
+		simulationState, err := LoadSimulationState(filepath.Join(statesFolderName, s.StateFileName))
+		if err != nil {
 			fmt.Println("\nLoading state from filepath failed, exiting now", err)
 			panic(err)
 		}
+		s.SimulationState = simulationState
 		return
 	}
 
 	if s.LoadLatestState {
-		if err := s.loadLatestState(); err != nil {
+		simulationState, err := LoadLatestSimulationState()
+		if err != nil {
 			fmt.Println("\nLoading latest state failed, exiting now", err)
 			panic(err)
 		}
+		s.SimulationState = simulationState
 		return
 	}
 
@@ -183,10 +187,7 @@ func (s *Server) fetchBigBang() {
 			cells = append(cells, cell)
 		}
 		buckets := CreateBuckets(cells, uint(s.BucketWidth))
-		s.SimulationState = SimulationState{
-			CellBuckets: buckets,
-			TimeStep:    0,
-		}
+		s.SimulationState = NewSimulationState(buckets)
 	})
 }
 
@@ -235,30 +236,32 @@ func (s *Server) broadcastCurrentState() {
 
 func (s *Server) step() {
 	UpdateBucketsMetrics(s.CellBuckets)
-	wg := &sync.WaitGroup{}
-	returnedBatchChan := make(chan *proto.CellComputeBatch)
 	doneChan := make(chan struct{})
 
-	go s.processReturnedBatches(returnedBatchChan, doneChan)
-
+	go s.processReturnedBatches(s.CurrentReturnedBatchChan(), doneChan)
 	for key, bucket := range s.CellBuckets {
+		if s.RequestInflightFromLastStep(key) {
+			continue
+		}
+
 		surroundingCells := []*proto.Cell{}
-		for _, otherKey := range key.SurroundingKeys() {
+		for _, otherKey := range key.SurroundingKeys(s.BucketWidth) {
 			if otherBucket, ok := s.CellBuckets[otherKey]; ok {
 				surroundingCells = append(surroundingCells, otherBucket...)
 			}
 		}
-		wg.Add(1)
+		s.CurrentWaitGroup().Add(1)
 		batch := &proto.CellComputeBatch{
 			CellsToCompute:   bucket,
 			CellsInProximity: surroundingCells,
 			TimeStep:         s.TimeStep,
+			BatchKey:         string(key),
 		}
-		go s.callCIS(batch, wg, returnedBatchChan)
+		go s.callCIS(batch, s.CurrentWaitGroup(), s.CurrentReturnedBatchChan())
 	}
 
-	wg.Wait()
-	close(returnedBatchChan)
+	s.CurrentWaitGroup().Wait()
+	s.Cycle()
 	<-doneChan
 	s.TimeStep++
 	fmt.Println(s.TimeStep, ": ", len(s.CellBuckets.AllCells()))
@@ -287,12 +290,46 @@ func (s *Server) callCIS(batch *proto.CellComputeBatch, wg *sync.WaitGroup, retu
 }
 
 func (s *Server) processReturnedBatches(returnedBatchChan chan *proto.CellComputeBatch, doneChan chan struct{}) {
-	newBuckets := Buckets{}
+	nextBuckets := Buckets{}
+	doneNeighbourBuckets := map[BucketKey]int{}
+
 	for returnedBatch := range returnedBatchChan {
 		returnedBuckets := CreateBuckets(returnedBatch.CellsToCompute, uint(s.BucketWidth))
-		newBuckets.Merge(returnedBuckets)
+		nextBuckets.Merge(returnedBuckets)
+		bucketKey := BucketKey(returnedBatch.BatchKey)
+
+		// call cis for next step if possible
+		keysToCheck := append(bucketKey.SurroundingKeys(s.BucketWidth), bucketKey)
+
+		for _, key := range keysToCheck {
+			doneNeighbourBuckets[key]++
+			bucket, exists := nextBuckets[key]
+			if !exists {
+				continue
+			}
+			if len(bucket) == 0 || doneNeighbourBuckets[key] < 27 || s.RequestInflight(key) {
+				continue
+			}
+
+			surroundingCells := []*proto.Cell{}
+			for _, surroundingKey := range key.SurroundingKeys(s.BucketWidth) {
+				surroundingBucket := nextBuckets[surroundingKey]
+				surroundingCells = append(surroundingCells, surroundingBucket...)
+			}
+
+			batch := &proto.CellComputeBatch{
+				CellsToCompute:   bucket,
+				CellsInProximity: surroundingCells,
+				TimeStep:         s.TimeStep + 1,
+				BatchKey:         string(key),
+			}
+			s.NextWaitGroup().Add(1)
+			go s.callCIS(batch, s.NextWaitGroup(), s.NextReturnedBatchChan())
+
+			s.MarkRequestInflight(key)
+		}
 	}
-	s.CellBuckets = newBuckets
+	s.CellBuckets = nextBuckets
 	doneChan <- struct{}{}
 }
 
