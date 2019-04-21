@@ -189,14 +189,6 @@ func (s *Server) fetchBigBang() {
 	})
 }
 
-var upgrader = websocketConn.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(_ *http.Request) bool {
-		return true
-	},
-}
-
 func (s *Server) listen() {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.GRPCPort))
 	if err != nil {
@@ -216,6 +208,14 @@ func (s *Server) listen() {
 	if err := s.httpServer.ListenAndServe(); err != nil {
 		log.Println(err)
 	}
+}
+
+var upgrader = websocketConn.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(_ *http.Request) bool {
+		return true
+	},
 }
 
 func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
