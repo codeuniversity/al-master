@@ -29,7 +29,7 @@ type SimulationState struct {
 	nextWaitGroup    *sync.WaitGroup
 }
 
-//NewSimulationState with internal map initialized
+//NewSimulationState with internal fields initialized
 func NewSimulationState(buckets Buckets) *SimulationState {
 	state := &SimulationState{
 		CellBuckets: buckets,
