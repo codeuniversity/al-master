@@ -12,6 +12,11 @@ import (
 //BucketKey is of the form "<x>/<y>/<z>"-index of a cell pos
 type BucketKey string
 
+//NewBucketKey generates a BucketKey in the form of "<x>/<y>/<z>"
+func NewBucketKey(x, y, z int) BucketKey {
+	return BucketKey(fmt.Sprintf("%d/%d/%d", x, y, z))
+}
+
 //Buckets is a map from "x/y/z"-bucket-index of the cells
 type Buckets map[BucketKey][]*proto.Cell
 
@@ -31,15 +36,32 @@ func CreateBuckets(cells []*proto.Cell, batchSize uint) Buckets {
 	return dict
 }
 
+//Merge otherBuckets into the Buckets Merge is called on
+func (b Buckets) Merge(otherBuckets Buckets) {
+	for key, cells := range otherBuckets {
+		b[key] = append(b[key], cells...)
+	}
+}
+
+//AllCells stored in the different Buckets
+func (b Buckets) AllCells() []*proto.Cell {
+	allCells := []*proto.Cell{}
+	for _, cells := range b {
+		allCells = append(allCells, cells...)
+	}
+	return allCells
+}
+
 func bucketKeyFor(pos *proto.Vector, batchSize uint) BucketKey {
 	batchXPosition := axisBatchPositionFor(pos.X, batchSize)
 	batchYPosition := axisBatchPositionFor(pos.Y, batchSize)
 	batchZPosition := axisBatchPositionFor(pos.Z, batchSize)
-	return BucketKey(fmt.Sprintf("%d/%d/%d", batchXPosition, batchYPosition, batchZPosition))
+	return NewBucketKey(batchXPosition, batchYPosition, batchZPosition)
 }
 
 //SurroundingKeys of the key, including diagonals
-func (k BucketKey) SurroundingKeys() []BucketKey {
+func (k BucketKey) SurroundingKeys(width int) []BucketKey {
+	width64 := int64(width)
 	components := strings.Split(string(k), "/")
 	if len(components) != 3 {
 		return nil
@@ -57,13 +79,13 @@ func (k BucketKey) SurroundingKeys() []BucketKey {
 		return nil
 	}
 	keys := []BucketKey{}
-	for otherX := x - 1; otherX <= x+1; otherX++ {
-		for otherY := y - 1; otherY <= y+1; otherY++ {
-			for otherZ := z - 1; otherZ <= z+1; otherZ++ {
+	for otherX := x - width64; otherX <= x+width64; otherX += width64 {
+		for otherY := y - width64; otherY <= y+width64; otherY += width64 {
+			for otherZ := z - width64; otherZ <= z+width64; otherZ += width64 {
 				if otherX == x && otherY == y && otherZ == z {
 					continue
 				}
-				keys = append(keys, BucketKey(fmt.Sprintf("%v/%v/%v", otherX, otherY, otherZ)))
+				keys = append(keys, NewBucketKey(int(otherX), int(otherY), int(otherZ)))
 			}
 		}
 	}

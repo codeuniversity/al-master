@@ -1,7 +1,7 @@
 module github.com/codeuniversity/al-master
 
 require (
-	github.com/codeuniversity/al-proto v0.0.0-20190304150234-19e0d23eb145
+	github.com/codeuniversity/al-proto v0.0.0-20190421194752-6539c98f8ef4
 	github.com/gorilla/websocket v1.4.0
 	github.com/prometheus/client_golang v0.9.2
 	github.com/stretchr/testify v1.3.0

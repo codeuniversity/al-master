@@ -24,6 +24,8 @@ github.com/codeuniversity/al-proto v0.0.0-20190223141316-4a31ea17b6a4 h1:FD6T2FV
 github.com/codeuniversity/al-proto v0.0.0-20190223141316-4a31ea17b6a4/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/codeuniversity/al-proto v0.0.0-20190304150234-19e0d23eb145 h1:fTJ7cGvZ02cXO4RmiKZk2bDzdSvZT2QgvP1a5+mDRzE=
 github.com/codeuniversity/al-proto v0.0.0-20190304150234-19e0d23eb145/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
+github.com/codeuniversity/al-proto v0.0.0-20190421194752-6539c98f8ef4 h1:7RqWze0Oq/7sN+3qlNuD1yLM4iP6jlvtpD9aG/SsrYM=
+github.com/codeuniversity/al-proto v0.0.0-20190421194752-6539c98f8ef4/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=

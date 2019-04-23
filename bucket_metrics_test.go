@@ -1,9 +1,10 @@
 package master
 
 import (
+	"testing"
+
 	"github.com/codeuniversity/al-proto"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestMinMaxBucketCells(t *testing.T) {
@@ -17,13 +18,13 @@ func TestMinMaxBucketCells(t *testing.T) {
 			"key2": []*proto.Cell{},
 			"key3": []*proto.Cell{cell1, cell2, cell3},
 		}
-		min, max := minMaxBucketCells(&buckets)
+		min, max := minMaxBucketCells(buckets)
 		assert.Equal(t, float64(0), min)
 		assert.Equal(t, float64(3), max)
 	})
 	t.Run("with no buckets", func(t *testing.T) {
 		buckets := Buckets{}
-		min, max := minMaxBucketCells(&buckets)
+		min, max := minMaxBucketCells(buckets)
 		assert.Equal(t, float64(0), min)
 		assert.Equal(t, float64(0), max)
 	})
@@ -42,7 +43,7 @@ func TestMedianCellsPerBucket(t *testing.T) {
 			"key2": []*proto.Cell{cell1, cell2},
 			"key3": []*proto.Cell{cell1, cell2, cell3, cell4},
 		}
-		median := medianCellsPerBucket(&buckets)
+		median := medianCellsPerBucket(buckets)
 		assert.Equal(t, float64(2), median)
 	})
 	t.Run("odd number of buckets", func(t *testing.T) {
@@ -51,12 +52,12 @@ func TestMedianCellsPerBucket(t *testing.T) {
 			"key2": []*proto.Cell{cell1},
 			"key3": []*proto.Cell{cell1, cell2, cell3},
 		}
-		median := medianCellsPerBucket(&buckets)
+		median := medianCellsPerBucket(buckets)
 		assert.Equal(t, float64(1), median)
 	})
 	t.Run("no buckets", func(t *testing.T) {
 		buckets := Buckets{}
-		median := medianCellsPerBucket(&buckets)
+		median := medianCellsPerBucket(buckets)
 		assert.Equal(t, float64(0), median)
 	})
 }
@@ -72,12 +73,12 @@ func TestAverageCellsPerBucket(t *testing.T) {
 			"key2": []*proto.Cell{cell1, cell2, cell3},
 			"key3": []*proto.Cell{cell1, cell2, cell3},
 		}
-		average := averageCellsPerBucket(&buckets)
+		average := averageCellsPerBucket(buckets)
 		assert.Equal(t, float64(2), average)
 	})
 	t.Run("no buckets", func(t *testing.T) {
 		buckets := Buckets{}
-		average := averageCellsPerBucket(&buckets)
+		average := averageCellsPerBucket(buckets)
 		assert.Equal(t, float64(0), average)
 	})
 }
