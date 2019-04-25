@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	proto "github.com/codeuniversity/al-proto"
+	"github.com/codeuniversity/al-proto"
 )
 
 //SimulationState ...

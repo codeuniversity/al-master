@@ -98,3 +98,26 @@ func axisBatchPositionFor(cellAxisPosition float32, batchSize uint) int {
 	}
 	return int(math.Floor(float64(cellAxisPosition/float32(batchSize))) * float64(batchSize))
 }
+
+/*//AllocateBucketsByXAxis returns one slice with all buckets whose X axis position is positive and one slice with all buckets whose X axis is negative
+func (b Buckets) AllocateBucketsByXAxis(batchSize uint) (bucketsXPosPositive, bucketsXPosNegative Buckets) {
+	cells := b.AllCells()
+	for _, cell := range cells {
+		key := bucketKeyFor(cell.Pos, batchSize)
+
+		if cell.Pos.X >= 0 {
+			if val, ok := bucketsXPosPositive[key]; ok {
+				bucketsXPosPositive[key] = append(val, cell)
+			} else {
+				bucketsXPosPositive[key] = []*proto.Cell{cell}
+			}
+		} else {
+			if val, ok := bucketsXPosNegative[key]; ok {
+				bucketsXPosNegative[key] = append(val, cell)
+			} else {
+				bucketsXPosNegative[key] = []*proto.Cell{cell}
+			}
+		}
+	}
+	return
+}*/
