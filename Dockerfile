@@ -7,5 +7,6 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /go/src/github.com/codeuniversity/al-master/master .
+COPY --from=builder /go/src/github.com/codeuniversity/al-master/big_bang_config.yaml .
 EXPOSE 4000
 CMD ["./master"]
