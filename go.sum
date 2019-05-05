@@ -4,6 +4,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/codeuniversity/al-proto v0.0.0-20190421194752-6539c98f8ef4 h1:7RqWze0Oq/7sN+3qlNuD1yLM4iP6jlvtpD9aG/SsrYM=
 github.com/codeuniversity/al-proto v0.0.0-20190421194752-6539c98f8ef4/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
+github.com/codeuniversity/al-proto v0.0.0-20190503002242-2fffc06fd647 h1:gOn7nRrAM7UzgPTAvLuQzVZMcIby0SqUL7MthwJoBDQ=
+github.com/codeuniversity/al-proto v0.0.0-20190503002242-2fffc06fd647/go.mod h1:ekv9v2LNLVfnd1/b45HjGJ+s7A32IurINIDEkLRy2Ho=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=

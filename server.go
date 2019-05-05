@@ -28,6 +28,71 @@ const (
 	statesFolderName = "states"
 )
 
+type MasterState interface {
+	Sync(s *Server)
+	SendStepDone(s *Server) (*proto.Empty, error)
+	//OtherStepDone() bool
+}
+
+type ChiefMaster struct {
+}
+
+func (c ChiefMaster) Sync(s *Server) {
+	for {
+		_, err := c.SendStepDone(s)
+		if err != nil {
+			fmt.Println("failed to send step done signal to sub master", err)
+		} else {
+			break
+		}
+	}
+	for {
+		if s.SubMasterData.ChiefMasterStepDone {
+			break
+		}
+	}
+}
+
+func (c ChiefMaster) SendStepDone(s *Server) (*proto.Empty, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return s.SubMasterCommunicationClient.ChiefMasterStepDone(ctx, &proto.Empty{})
+}
+
+type SubMaster struct {
+}
+
+func (u SubMaster) Sync(s *Server) {
+	for {
+		_, err := u.SendStepDone(s)
+		if err != nil {
+			fmt.Println("failed to send step done signal to chief master", err)
+		} else {
+			break
+		}
+	}
+	for {
+		if s.ChiefMasterData.SubMasterStepDone {
+			break
+		}
+	}
+}
+
+func (u SubMaster) SendStepDone(s *Server) (*proto.Empty, error) {
+	if s.SubMasterData.ChiefMasterCommunicationClient == nil {
+		client, err := createMasterCommunicationClient(s.ChiefMasterAddress)
+		if err != nil {
+			fmt.Println("couldn't create connection to chief master")
+			return nil, err
+		}
+		s.ChiefMasterCommunicationClient = client
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return s.ChiefMasterCommunicationClient.SubMasterStepDone(ctx, &proto.Empty{})
+}
+
 //MasterMode contains the server's mode it is currently in
 type MasterMode struct {
 	StandAloneMaster bool
@@ -66,6 +131,8 @@ type Server struct {
 
 	ChiefMasterData
 	SubMasterData
+
+	MasterState
 }
 
 //ChiefMasterData will hold additional data that is needed if the master is in ChiefMasterData mode
@@ -165,6 +232,9 @@ func (s *Server) Run() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	for {
+		if s.SubMaster{ s.MasterState = SubMaster{}}
+		if s.ChiefMaster{s.MasterState = ChiefMaster{}}
+
 		if len(s.CellBuckets.AllCells()) == 0 {
 			fmt.Println("no cells remaining, stopping...")
 			break
@@ -181,8 +251,10 @@ func (s *Server) Run() {
 
 		s.step()
 
+
+		s.MasterState.Sync(s)
+
 		if s.SubMaster {
-			s.syncWithChiefMaster()
 
 			cellsOutsideResponsibility, cellsInsideResponsibility := s.checkForCellResponsibility()
 
@@ -205,7 +277,6 @@ func (s *Server) Run() {
 		}
 
 		if s.ChiefMaster {
-			s.syncWithSubMaster()
 
 			_, err := s.sendSubMasterCellsInProximity()
 			if err != nil {
@@ -224,38 +295,6 @@ func (s *Server) Run() {
 		}
 	}
 	s.shutdown()
-}
-
-func (s *Server) syncWithChiefMaster() {
-	for {
-		_, err := s.sendStepDoneToChiefMaster()
-		if err != nil {
-			fmt.Println("failed to send step done signal to chief master", err)
-		} else {
-			break
-		}
-	}
-	for {
-		if s.SubMasterData.ChiefMasterStepDone {
-			break
-		}
-	}
-}
-
-func (s *Server) syncWithSubMaster() {
-	for {
-		_, err := s.sendStepDoneToSubMaster()
-		if err != nil {
-			fmt.Println("failed to send step done signal to sub master", err)
-		} else {
-			break
-		}
-	}
-	for {
-		if s.ChiefMasterData.SubMasterStepDone {
-			break
-		}
-	}
 }
 
 //Register cis-slave and create clients to make the slave useful
@@ -325,33 +364,12 @@ func (s *Server) UpdateCellsInProximity(ctx context.Context, transfer *proto.Cel
 	return &proto.Empty{}, nil
 }
 
-func (s *Server) sendStepDoneToChiefMaster() (*proto.Empty, error) {
-	if s.SubMasterData.ChiefMasterCommunicationClient == nil {
-		client, err := createMasterCommunicationClient(s.ChiefMasterAddress)
-		if err != nil {
-			fmt.Println("couldn't create connection to chief master")
-			return nil, err
-		}
-		s.ChiefMasterCommunicationClient = client
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	return s.ChiefMasterCommunicationClient.SubMasterStepDone(ctx, &proto.Empty{})
-}
-
-func (s *Server) sendStepDoneToSubMaster() (*proto.Empty, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	return s.SubMasterCommunicationClient.ChiefMasterStepDone(ctx, &proto.Empty{})
-}
-
-func (s *Server) ChiefMasterStepDone(ctx context.Context, empty *proto.Empty) (*proto.Empty, error) {
+func (s *Server) SubMasterStepDone(ctx context.Context, empty *proto.Empty) (*proto.Empty, error) {
 	s.SubMasterData.ChiefMasterStepDone = true
 	return &proto.Empty{}, nil
 }
 
-func (s *Server) SubMasterStepDone(ctx context.Context, empty *proto.Empty) (*proto.Empty, error) {
+func (s *Server) ChiefMasterStepDone(ctx context.Context, empty *proto.Empty) (*proto.Empty, error) {
 	s.ChiefMasterData.SubMasterStepDone = true
 	return &proto.Empty{}, nil
 }
